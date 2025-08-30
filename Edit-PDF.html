@@ -3,124 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PDF Editor Plugin — Fixed & Fully Functional</title>
+  <title>PDF Editor Plugin — Full Fixed Version</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <style>
-    /* ---------- Base / Existing Look & Feel (unchanged) ---------- */
-    * { margin:0; padding:0; box-sizing:border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color:#333; min-height:100vh; padding:20px; display:flex; flex-direction:column; align-items:center; }
-    .container { width:100%; max-width:1200px; margin:0 auto; }
-    .loading-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); color:#fff; display:none; align-items:center; justify-content:center; z-index:9999; font-size:18px; }
-    .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:24px; background:#222; color:#fff; padding:10px 16px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .3s; z-index:9999; }
-    .toast.show { opacity:1; }
+    *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+    body{background:linear-gradient(135deg,#6a11cb 0%,#2575fc 100%);color:#333;min-height:100vh;padding:20px;}
+    .container{max-width:1200px;margin:auto;}
 
-    .home-page { text-align:center; color:#fff; margin-bottom:18px; }
-    .home-page h1 { font-size:2.4rem; margin-bottom:10px; text-shadow: 2px 2px 4px rgba(0,0,0,.3); }
-    .edit-pdf-btn { margin-top:8px; background:#3498db; color:#fff; border:none; padding:12px 18px; border-radius:10px; cursor:pointer; }
+    .home-page{text-align:center;color:#fff;margin-bottom:18px;}
+    .edit-pdf-btn{margin-top:8px;background:#3498db;color:#fff;border:none;padding:12px 18px;border-radius:10px;cursor:pointer;}
 
-    .upload-page { background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.15); padding:24px; }
-    .upload-area { border:2px dashed #9bbad6; border-radius:12px; padding:28px; text-align:center; cursor:pointer; background:#f8fbff; }
-    .file-input { display:none; }
-    .back-btn, .share-btn { margin-top:12px; background:#95a5a6; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; }
+    .upload-page{background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:24px;display:none;}
+    .upload-area{border:2px dashed #aaa;border-radius:12px;padding:28px;text-align:center;cursor:pointer;}
+    .upload-area:hover{border-color:#3498db;}
+    .file-input{display:none;}
 
-    .editor-container { background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.15); overflow:hidden; margin-top:20px; display:none; }
+    .editor-container{background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);margin-top:20px;display:none;}
+    .toolbar{background:#2c3e50;color:#fff;padding:12px;display:flex;gap:12px;flex-wrap:wrap;}
+    .toolbar button{background:#3498db;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;}
+    .toolbar button:hover{background:#2980b9;}
+    .tool-active{outline:2px solid #7ec8ff;}
 
-    .toolbar { background:#2c3e50; color:#fff; padding:12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; position:relative; }
-    .toolbar-group { display:flex; gap:10px; align-items:center; padding-right:15px; border-right:1px solid #3c5065; }
-    .toolbar-group:last-child { border-right:none; }
-    .toolbar button { background:#3498db; color:#fff; border:none; padding:9px 12px; border-radius:6px; cursor:pointer; transition:all .25s; display:flex; align-items:center; gap:8px; }
-    .toolbar button:hover { background:#2980b9; transform: translateY(-1px); }
-    .toolbar select, .toolbar input { padding:8px; border-radius:6px; border:1px solid #ddd; background:#fff; }
-    .tool-active { outline:2px solid #7ec8ff; }
+    .pdf-viewer-container{position:relative;height:70vh;overflow:auto;background:#f0f3f5;display:flex;justify-content:center;padding:30px;}
+    #pdf-canvas{background:#fff;box-shadow:0 5px 15px rgba(0,0,0,.1);margin:auto;}
+    #drawing-canvas{position:absolute;top:30px;left:0;pointer-events:auto;}
 
-    .pdf-viewer-container { position:relative; height:70vh; overflow:auto; background:#f0f3f5; display:flex; justify-content:center; padding:30px; }
-    .pdf-page { background:#fff; box-shadow:0 5px 15px rgba(0,0,0,.1); width:816px; position:relative; margin:0 auto; overflow:hidden; }
-    .pdf-content { position:relative; }
-    .page-mock { position:absolute; inset:40px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:#7f8c8d; }
+    .textbox-container{position:absolute;border:1px solid #3498db;border-radius:6px;background:#fff;padding:4px;z-index:10;}
+    .textbox-content{width:100%;height:100%;border:none;outline:none;resize:none;background:transparent;}
 
-    #pdf-render-canvas { display:block; margin:40px auto; background:#fff; }
-    .annotation-canvas, .drawing-canvas { position:absolute; pointer-events:none; }
-    .drawing-canvas { pointer-events:auto; }
-
-    .status-bar { background:#ecf0f1; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid #e2e8f0; }
-
-    .article-container { margin-top:16px; background:#fff; padding:18px; border-radius:10px; box-shadow:0 6px 14px rgba(0,0,0,.08); }
-    .article-container h3{ color:#2c3e50; margin-bottom:10px; text-align:center; font-size:22px; border-bottom:2px solid #3498db; padding-bottom:8px; }
-    .article-container p{ color:#7f8c8d; line-height:1.6; margin-bottom:12px; text-align:justify; }
+    .status-bar{background:#ecf0f1;padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid #ccc;}
   </style>
 </head>
 <body>
-  <div class="loading-overlay" id="loading-overlay"><div>Loading PDF Editor…</div></div>
-  <div class="toast" id="toast"></div>
-
   <div class="container">
+    <!-- Home -->
     <div id="home-page" class="home-page">
       <h1>PDF Editor Plugin</h1>
       <p>Advanced text box tools for your PDF editor</p>
       <button id="edit-pdf-btn" class="edit-pdf-btn"><i class="fas fa-edit"></i> EDIT PDF</button>
     </div>
 
+    <!-- Upload -->
     <div id="upload-page" class="upload-page">
       <h2>Upload Your PDF</h2>
-      <p>Select a PDF file to start editing</p>
       <div class="upload-area" id="upload-area">
         <i class="fas fa-file-upload"></i>
-        <h3>Drag & Drop your PDF here</h3>
-        <p>or click to browse files</p>
-        <input type="file" id="file-input-upload" class="file-input" accept="application/pdf" />
+        <p>Click or Drag & Drop a PDF file</p>
+        <input type="file" id="file-input" class="file-input" accept="application/pdf" />
       </div>
-      <button id="share-btn" class="share-btn"><i class="fas fa-share-alt"></i> Sharing is Caring</button>
-      <button class="back-btn" id="back-btn"><i class="fas fa-arrow-left"></i> Back to Home</button>
-
-      <div class="article-container">
-        <h3>The Ultimate Guide to PDF Editing</h3>
-        <p>Use the tools above to upload and edit a PDF without changing the look & feel of your site.</p>
-      </div>
+      <button id="back-btn" class="edit-pdf-btn" style="background:#95a5a6;"><i class="fas fa-arrow-left"></i> Back</button>
     </div>
 
+    <!-- Editor -->
     <div class="editor-container" id="editor-container">
       <div class="toolbar">
-        <div class="toolbar-group">
-          <button id="save-pdf"><i class="fas fa-save"></i> Save</button>
-          <button id="print-pdf"><i class="fas fa-print"></i> Print</button>
-        </div>
-        <div class="toolbar-group">
-          <button id="text-tool"><i class="fas fa-font"></i> Text</button>
-          <button id="textbox-tool" class="tool-active"><i class="fas fa-square"></i> Text Box</button>
-          <button id="draw-tool"><i class="fas fa-pen"></i> Draw</button>
-          <button id="highlight-tool"><i class="fas fa-highlighter"></i> Highlight</button>
-          <button id="shapes-tool"><i class="fas fa-shapes"></i> Shapes</button>
-        </div>
-        <div class="toolbar-group">
-          <button id="undo"><i class="fas fa-undo"></i> Undo</button>
-          <button id="redo"><i class="fas fa-redo"></i> Redo</button>
-        </div>
-        <div class="toolbar-group">
-          <button id="zoom-out"><i class="fas fa-search-minus"></i></button>
-          <button id="zoom-reset">100%</button>
-          <button id="zoom-in"><i class="fas fa-search-plus"></i></button>
-        </div>
+        <button id="save-pdf"><i class="fas fa-save"></i> Save</button>
+        <button id="print-pdf"><i class="fas fa-print"></i> Print</button>
+        <button id="textbox-tool" class="tool-active"><i class="fas fa-square"></i> Text Box</button>
+        <button id="draw-tool"><i class="fas fa-pen"></i> Draw</button>
+        <button id="zoom-out"><i class="fas fa-search-minus"></i></button>
+        <button id="zoom-reset">100%</button>
+        <button id="zoom-in"><i class="fas fa-search-plus"></i></button>
       </div>
 
-      <div class="pdf-viewer-container">
-        <div class="pdf-page">
-          <div class="pdf-content">
-            <canvas id="pdf-render-canvas"></canvas>
-            <canvas id="annotation-canvas" class="annotation-canvas"></canvas>
-            <canvas id="drawing-canvas" class="drawing-canvas"></canvas>
-            <div class="page-mock" id="page-mock">
-              <i class="fas fa-file-pdf"></i>
-              <h2>PDF Document Preview</h2>
-              <p>Open a PDF file to start editing</p>
-            </div>
-          </div>
-        </div>
+      <div class="pdf-viewer-container" id="pdf-container">
+        <canvas id="pdf-canvas"></canvas>
+        <canvas id="drawing-canvas"></canvas>
       </div>
 
       <div class="status-bar">
-        <div class="page-info">Page: <span id="page-num">1</span> / <span id="page-count">1</span></div>
-        <div class="page-controls">
-          <button id="prev-page"><i class="fas fa-chevron-left"></i> Previous</button>
+        <div>Page: <span id="page-num">1</span>/<span id="page-count">1</span></div>
+        <div>
+          <button id="prev-page"><i class="fas fa-chevron-left"></i> Prev</button>
           <button id="next-page">Next <i class="fas fa-chevron-right"></i></button>
         </div>
       </div>
@@ -130,79 +84,111 @@
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
   <script>
-    // ✅ Ensure PDF.js worker is loaded
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
 
-    const state = { pdfDoc:null, pageNum:1, pageCount:1, zoomLevel:100, pdfFileUrl:null, drawing:false, lastX:0, lastY:0 };
+    const state={pdfDoc:null,pageNum:1,pageCount:1,zoom:1.2,tool:'textbox',drawing:false,lastX:0,lastY:0,textboxCounter:0};
 
-    const elements = {
-      homePage:document.getElementById('home-page'),
-      uploadPage:document.getElementById('upload-page'),
-      editorContainer:document.getElementById('editor-container'),
-      editPdfBtn:document.getElementById('edit-pdf-btn'),
-      uploadArea:document.getElementById('upload-area'),
-      fileInputUpload:document.getElementById('file-input-upload'),
-      backBtn:document.getElementById('back-btn'),
-      pdfCanvas:document.getElementById('pdf-render-canvas'),
-      pageMock:document.getElementById('page-mock'),
-      pageNumElem:document.getElementById('page-num'),
-      pageCountElem:document.getElementById('page-count'),
-      nextPageBtn:document.getElementById('next-page'),
-      prevPageBtn:document.getElementById('prev-page'),
-      zoomInBtn:document.getElementById('zoom-in'),
-      zoomOutBtn:document.getElementById('zoom-out'),
-      zoomResetBtn:document.getElementById('zoom-reset'),
-      loadingOverlay:document.getElementById('loading-overlay'),
-      toast:document.getElementById('toast'),
-      drawingCanvas:document.getElementById('drawing-canvas')
-    };
+    const fileInput=document.getElementById('file-input');
+    const uploadArea=document.getElementById('upload-area');
+    const homePage=document.getElementById('home-page');
+    const uploadPage=document.getElementById('upload-page');
+    const editor=document.getElementById('editor-container');
+    const canvas=document.getElementById('pdf-canvas');
+    const ctx=canvas.getContext('2d');
+    const drawCanvas=document.getElementById('drawing-canvas');
+    const drawCtx=drawCanvas.getContext('2d');
 
-    function showToast(msg){ elements.toast.textContent=msg; elements.toast.classList.add('show'); setTimeout(()=>elements.toast.classList.remove('show'),2000); }
-    function showUploadPage(){ elements.homePage.style.display='none'; elements.uploadPage.style.display='block'; elements.editorContainer.style.display='none'; }
-    function showEditor(){ elements.homePage.style.display='none'; elements.uploadPage.style.display='none'; elements.editorContainer.style.display='block'; }
+    // Navigation
+    document.getElementById('edit-pdf-btn').onclick=()=>{homePage.style.display='none';uploadPage.style.display='block';};
+    document.getElementById('back-btn').onclick=()=>{homePage.style.display='block';uploadPage.style.display='none';editor.style.display='none';};
 
-    async function loadPdfFromFile(file){
+    // File picker
+    uploadArea.onclick=()=>fileInput.click();
+    fileInput.onchange=e=>loadPdf(e.target.files[0]);
+
+    // Drag & drop
+    ['dragenter','dragover'].forEach(ev=>uploadArea.addEventListener(ev,e=>{e.preventDefault();uploadArea.style.borderColor='#3498db';}));
+    ['dragleave','drop'].forEach(ev=>uploadArea.addEventListener(ev,e=>{e.preventDefault();uploadArea.style.borderColor='#aaa';}));
+    uploadArea.addEventListener('drop',e=>{if(e.dataTransfer.files[0]) loadPdf(e.dataTransfer.files[0]);});
+
+    async function loadPdf(file){
       if(!file) return;
-      const isPdf = file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
-      if(!isPdf){ showToast('Invalid PDF file'); return; }
-
-      elements.loadingOverlay.style.display='flex';
-      try {
-        if(state.pdfFileUrl) URL.revokeObjectURL(state.pdfFileUrl);
-        state.pdfFileUrl = URL.createObjectURL(file);
-        const loadingTask = pdfjsLib.getDocument(state.pdfFileUrl);
-        state.pdfDoc = await loadingTask.promise;
+      if(file.type!=='application/pdf'&&!file.name.endsWith('.pdf')){alert('Please upload a PDF');return;}
+      const url=URL.createObjectURL(file);
+      try{
+        state.pdfDoc=await pdfjsLib.getDocument({url}).promise;
         state.pageCount=state.pdfDoc.numPages; state.pageNum=1;
-        elements.pageCountElem.textContent=state.pageCount;
-        elements.pageNumElem.textContent=state.pageNum;
-        elements.pageMock.style.display='none';
+        document.getElementById('page-count').textContent=state.pageCount;
         await renderPage();
-        showEditor();
-        showToast('PDF loaded');
-      } catch(e){ console.error(e); showToast('Failed to load PDF file'); }
-      finally { elements.loadingOverlay.style.display='none'; }
+        uploadPage.style.display='none'; editor.style.display='block';
+      }catch(err){console.error(err);alert('Failed to load PDF');}
     }
 
     async function renderPage(){
       const page=await state.pdfDoc.getPage(state.pageNum);
-      const viewport=page.getViewport({scale:state.zoomLevel/100});
-      const canvas=elements.pdfCanvas, ctx=canvas.getContext('2d');
+      const viewport=page.getViewport({scale:state.zoom});
       canvas.width=viewport.width; canvas.height=viewport.height;
+      drawCanvas.width=viewport.width; drawCanvas.height=viewport.height;
       await page.render({canvasContext:ctx,viewport}).promise;
+      document.getElementById('page-num').textContent=state.pageNum;
     }
 
-    elements.editPdfBtn.onclick=showUploadPage;
-    elements.backBtn.onclick=()=>{ elements.homePage.style.display='block'; elements.uploadPage.style.display='none'; };
-    elements.fileInputUpload.onchange=e=>loadPdfFromFile(e.target.files[0]);
-    elements.uploadArea.onclick=()=>elements.fileInputUpload.click();
-    elements.nextPageBtn.onclick=async()=>{ if(state.pageNum<state.pageCount){ state.pageNum++; elements.pageNumElem.textContent=state.pageNum; await renderPage(); } };
-    elements.prevPageBtn.onclick=async()=>{ if(state.pageNum>1){ state.pageNum--; elements.pageNumElem.textContent=state.pageNum; await renderPage(); } };
-    elements.zoomInBtn.onclick=()=>{ state.zoomLevel+=10; elements.zoomResetBtn.textContent=state.zoomLevel+'%'; renderPage(); };
-    elements.zoomOutBtn.onclick=()=>{ if(state.zoomLevel>20){ state.zoomLevel-=10; elements.zoomResetBtn.textContent=state.zoomLevel+'%'; renderPage(); } };
-    elements.zoomResetBtn.onclick=()=>{ state.zoomLevel=100; elements.zoomResetBtn.textContent='100%'; renderPage(); };
+    // Tools
+    document.getElementById('textbox-tool').onclick=()=>{state.tool='textbox';setActive('textbox-tool');};
+    document.getElementById('draw-tool').onclick=()=>{state.tool='draw';setActive('draw-tool');};
+    function setActive(id){document.querySelectorAll('.toolbar button').forEach(b=>b.classList.remove('tool-active'));document.getElementById(id).classList.add('tool-active');}
 
-    showUploadPage();
+    // Textbox creation
+    canvas.parentElement.addEventListener('dblclick',e=>{
+      if(state.tool!=='textbox') return;
+      const rect=canvas.getBoundingClientRect();
+      const box=document.createElement('div');
+      box.className='textbox-container';
+      box.style.left=(e.clientX-rect.left)+'px';
+      box.style.top=(e.clientY-rect.top)+'px';
+      box.style.width='150px'; box.style.height='50px';
+      const ta=document.createElement('textarea');
+      ta.className='textbox-content';
+      ta.value='Type...';
+      box.appendChild(ta);
+      document.getElementById('pdf-container').appendChild(box);
+      // Dragging
+      let drag=false,offX=0,offY=0;
+      box.addEventListener('mousedown',ev=>{drag=true;offX=ev.offsetX;offY=ev.offsetY;});
+      document.addEventListener('mousemove',ev=>{if(drag){box.style.left=(ev.clientX-rect.left-offX)+'px';box.style.top=(ev.clientY-rect.top-offY)+'px';}});
+      document.addEventListener('mouseup',()=>drag=false);
+    });
+
+    // Drawing
+    drawCanvas.addEventListener('mousedown',e=>{
+      if(state.tool!=='draw') return;
+      state.drawing=true;
+      const rect=drawCanvas.getBoundingClientRect();
+      state.lastX=e.clientX-rect.left; state.lastY=e.clientY-rect.top;
+    });
+    drawCanvas.addEventListener('mousemove',e=>{
+      if(!state.drawing) return;
+      const rect=drawCanvas.getBoundingClientRect();
+      const x=e.clientX-rect.left, y=e.clientY-rect.top;
+      drawCtx.beginPath();
+      drawCtx.moveTo(state.lastX,state.lastY);
+      drawCtx.lineTo(x,y);
+      drawCtx.strokeStyle='red'; drawCtx.lineWidth=2;
+      drawCtx.stroke();
+      state.lastX=x; state.lastY=y;
+    });
+    ['mouseup','mouseleave'].forEach(ev=>drawCanvas.addEventListener(ev,()=>state.drawing=false));
+
+    // Zoom + pages
+    document.getElementById('zoom-in').onclick=()=>{state.zoom+=0.2;renderPage();document.getElementById('zoom-reset').textContent=Math.round(state.zoom*100)+'%';};
+    document.getElementById('zoom-out').onclick=()=>{if(state.zoom>0.4){state.zoom-=0.2;renderPage();document.getElementById('zoom-reset').textContent=Math.round(state.zoom*100)+'%';}};
+    document.getElementById('zoom-reset').onclick=()=>{state.zoom=1.2;renderPage();document.getElementById('zoom-reset').textContent='100%';};
+    document.getElementById('next-page').onclick=()=>{if(state.pageNum<state.pageCount){state.pageNum++;renderPage();}};
+    document.getElementById('prev-page').onclick=()=>{if(state.pageNum>1){state.pageNum--;renderPage();}};
+
+    document.getElementById('print-pdf').onclick=()=>window.print();
+    document.getElementById('save-pdf').onclick=()=>alert('Export to PDF not implemented — use pdf-lib/jsPDF for real saving');
   </script>
 </body>
 </html>

@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>PDF Editor</title>
-    <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
+    <!-- Using a reliable CDN for pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <script src="https://unpkg.com/downloadjs@1.4.7"></script>
+    <script src="https://unpkg.com/downloadjs@1.4.7/download.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -338,635 +339,671 @@
     </div>
 
     <script>
-        // Global variables
-        let pdfJSDoc = null;
-        let pdfLibDoc = null;
-        let pageNum = 1;
-        let pageCount = 0;
-        let scale = 1.0;
-        let pageRendering = false;
-        let pageNumPending = null;
-        let originalPdfBytes = null;
-        let fabricCanvases = [];
-        let currentFabricCanvas = null;
-        let history = [];
-        let historyIndex = -1;
-
-        // Select elements
-        const uploadArea = document.querySelector('.upload-area');
-        const fileInput = document.getElementById('file-input');
-        const uploadError = document.getElementById('upload-error');
-        const saveBtn = document.getElementById('save');
-        const printBtn = document.getElementById('print');
-        const textBtn = document.getElementById('text');
-        const textBoxBtn = document.getElementById('text-box');
-        const drawBtn = document.getElementById('draw');
-        const highlightBtn = document.getElementById('highlight');
-        const shapesBtn = document.getElementById('shapes');
-        const undoBtn = document.getElementById('undo');
-        const redoBtn = document.getElementById('redo');
-        const fontFamily = document.getElementById('font-family');
-        const fontSize = document.getElementById('font-size');
-        const fontColor = document.getElementById('font-color');
-        const boldBtn = document.getElementById('bold');
-        const italicBtn = document.getElementById('italic');
-        const underlineBtn = document.getElementById('underline');
-        const alignLeftBtn = document.getElementById('align-left');
-        const alignCenterBtn = document.getElementById('align-center');
-        const alignRightBtn = document.getElementById('align-right');
-        const valignTopBtn = document.getElementById('valign-top');
-        const valignMiddleBtn = document.getElementById('valign-middle');
-        const valignBottomBtn = document.getElementById('valign-bottom');
-        const fontFamilyTextbox = document.getElementById('font-family-textbox');
-        const fontSizeTextbox = document.getElementById('font-size-textbox');
-        const fontColorTextbox = document.getElementById('font-color-textbox');
-        const boldTextboxBtn = document.getElementById('bold-textbox');
-        const italicTextboxBtn = document.getElementById('italic-textbox');
-        const underlineTextboxBtn = document.getElementById('underline-textbox');
-        const alignLeftTextboxBtn = document.getElementById('align-left-textbox');
-        const alignCenterTextboxBtn = document.getElementById('align-center-textbox');
-        const alignRightTextboxBtn = document.getElementById('align-right-textbox');
-        const valignTopTextboxBtn = document.getElementById('valign-top-textbox');
-        const valignMiddleTextboxBtn = document.getElementById('valign-middle-textbox');
-        const valignBottomTextboxBtn = document.getElementById('valign-bottom-textbox');
-        const boxBackground = document.getElementById('box-background');
-        const boxBorder = document.getElementById('box-border');
-        const drawColor = document.getElementById('draw-color');
-        const lineWidth = document.getElementById('line-width');
-        const lineStyle = document.getElementById('line-style');
-        const highlightColor = document.getElementById('highlight-color');
-        const opacity = document.getElementById('opacity');
-        const opacityValue = document.getElementById('opacity-value');
-        const shapeColor = document.getElementById('shape-color');
-        const borderWidth = document.getElementById('border-width');
-        const fillStyle = document.getElementById('fill-style');
-        const selectShape = document.getElementById('select-shape');
-        const zoom = document.getElementById('zoom');
-        const pageNumDisplay = document.getElementById('page-num');
-        const pageCountDisplay = document.getElementById('page-count');
-        const previousBtn = document.getElementById('previous');
-        const nextBtn = document.getElementById('next');
-        const preview = document.getElementById('preview');
-
-        // Handle file upload with enhanced error handling
-        uploadArea.onclick = () => {
-            console.log('Upload area clicked');
-            fileInput.click();
-        };
-
-        fileInput.onchange = (e) => {
-            console.log('File input changed', e.target.files);
-            if (e.target.files && e.target.files[0]) {
-                handleFile(e.target.files[0]);
-            } else {
-                uploadError.textContent = 'No file selected. Please choose a PDF file.';
+        // Wait for all scripts to load
+        window.onload = () => {
+            console.log('Window loaded');
+            if (!window.pdfjsLib) {
+                const uploadError = document.getElementById('upload-error');
+                uploadError.textContent = 'Failed to load pdf.js library. Please check your internet connection and try again.';
                 uploadError.style.display = 'block';
+                return;
             }
+            if (!window.PDFLib) {
+                const uploadError = document.getElementById('upload-error');
+                uploadError.textContent = 'Failed to load pdf-lib library. Please check your internet connection and try again.';
+                uploadError.style.display = 'block';
+                return;
+            }
+            if (!window.fabric) {
+                const uploadError = document.getElementById('upload-error');
+                uploadError.textContent = 'Failed to load fabric.js library. Please check your internet connection and try again.';
+                uploadError.style.display = 'block';
+                return;
+            }
+            if (!window.download) {
+                const uploadError = document.getElementById('upload-error');
+                uploadError.textContent = 'Failed to load downloadjs library. Please check your internet connection and try again.';
+                uploadError.style.display = 'block';
+                return;
+            }
+            console.log('All libraries loaded successfully');
+            initializeEditor();
         };
 
-        uploadArea.ondragover = (e) => {
-            e.preventDefault();
-            console.log('Drag over');
-            uploadArea.style.backgroundColor = '#e1e1e1';
-        };
+        function initializeEditor() {
+            // Global variables
+            let pdfJSDoc = null;
+            let pdfLibDoc = null;
+            let pageNum = 1;
+            let pageCount = 0;
+            let scale = 1.0;
+            let pageRendering = false;
+            let pageNumPending = null;
+            let originalPdfBytes = null;
+            let fabricCanvases = [];
+            let currentFabricCanvas = null;
+            let history = [];
+            let historyIndex = -1;
 
-        uploadArea.ondragleave = () => {
-            console.log('Drag leave');
-            uploadArea.style.backgroundColor = '';
-        };
+            // Select elements
+            const uploadArea = document.querySelector('.upload-area');
+            const fileInput = document.getElementById('file-input');
+            const uploadError = document.getElementById('upload-error');
+            const saveBtn = document.getElementById('save');
+            const printBtn = document.getElementById('print');
+            const textBtn = document.getElementById('text');
+            const textBoxBtn = document.getElementById('text-box');
+            const drawBtn = document.getElementById('draw');
+            const highlightBtn = document.getElementById('highlight');
+            const shapesBtn = document.getElementById('shapes');
+            const undoBtn = document.getElementById('undo');
+            const redoBtn = document.getElementById('redo');
+            const fontFamily = document.getElementById('font-family');
+            const fontSize = document.getElementById('font-size');
+            const fontColor = document.getElementById('font-color');
+            const boldBtn = document.getElementById('bold');
+            const italicBtn = document.getElementById('italic');
+            const underlineBtn = document.getElementById('underline');
+            const alignLeftBtn = document.getElementById('align-left');
+            const alignCenterBtn = document.getElementById('align-center');
+            const alignRightBtn = document.getElementById('align-right');
+            const valignTopBtn = document.getElementById('valign-top');
+            const valignMiddleBtn = document.getElementById('valign-middle');
+            const valignBottomBtn = document.getElementById('valign-bottom');
+            const fontFamilyTextbox = document.getElementById('font-family-textbox');
+            const fontSizeTextbox = document.getElementById('font-size-textbox');
+            const fontColorTextbox = document.getElementById('font-color-textbox');
+            const boldTextboxBtn = document.getElementById('bold-textbox');
+            const italicTextboxBtn = document.getElementById('italic-textbox');
+            const underlineTextboxBtn = document.getElementById('underline-textbox');
+            const alignLeftTextboxBtn = document.getElementById('align-left-textbox');
+            const alignCenterTextboxBtn = document.getElementById('align-center-textbox');
+            const alignRightTextboxBtn = document.getElementById('align-right-textbox');
+            const valignTopTextboxBtn = document.getElementById('valign-top-textbox');
+            const valignMiddleTextboxBtn = document.getElementById('valign-middle-textbox');
+            const valignBottomTextboxBtn = document.getElementById('valign-bottom-textbox');
+            const boxBackground = document.getElementById('box-background');
+            const boxBorder = document.getElementById('box-border');
+            const drawColor = document.getElementById('draw-color');
+            const lineWidth = document.getElementById('line-width');
+            const lineStyle = document.getElementById('line-style');
+            const highlightColor = document.getElementById('highlight-color');
+            const opacity = document.getElementById('opacity');
+            const opacityValue = document.getElementById('opacity-value');
+            const shapeColor = document.getElementById('shape-color');
+            const borderWidth = document.getElementById('border-width');
+            const fillStyle = document.getElementById('fill-style');
+            const selectShape = document.getElementById('select-shape');
+            const zoom = document.getElementById('zoom');
+            const pageNumDisplay = document.getElementById('page-num');
+            const pageCountDisplay = document.getElementById('page-count');
+            const previousBtn = document.getElementById('previous');
+            const nextBtn = document.getElementById('next');
+            const preview = document.getElementById('preview');
 
-        uploadArea.ondrop = (e) => {
-            e.preventDefault();
-            console.log('File dropped', e.dataTransfer.files);
-            uploadArea.style.backgroundColor = '';
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                const file = e.dataTransfer.files[0];
-                if (file.type === 'application/pdf') {
-                    handleFile(file);
+            // Configure pdf.js worker
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.worker.min.js';
+
+            // Handle file upload
+            uploadArea.onclick = () => {
+                console.log('Upload area clicked');
+                fileInput.click();
+            };
+
+            fileInput.onchange = (e) => {
+                console.log('File input changed', e.target.files);
+                if (e.target.files && e.target.files[0]) {
+                    handleFile(e.target.files[0]);
                 } else {
-                    uploadError.textContent = 'Invalid file type. Please upload a PDF file.';
+                    uploadError.textContent = 'No file selected. Please choose a PDF file.';
                     uploadError.style.display = 'block';
                 }
-            } else {
-                uploadError.textContent = 'No file dropped. Please try again.';
-                uploadError.style.display = 'block';
-            }
-        };
+            };
 
-        async function handleFile(file) {
-            try {
-                console.log('Handling file:', file.name);
-                uploadError.style.display = 'none';
-                originalPdfBytes = await file.arrayBuffer();
-                pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
-                const url = URL.createObjectURL(file);
-                pdfJSDoc = await pdfjsLib.getDocument(url).promise;
-                pageCount = pdfJSDoc.numPages;
-                fabricCanvases = new Array(pageCount + 1).fill([]); // index 1 to pageCount
-                pageNumDisplay.textContent = pageNum;
-                pageCountDisplay.textContent = pageCount;
-                renderPage(pageNum);
-            } catch (error) {
-                console.error('Error loading PDF:', error);
-                uploadError.textContent = `Failed to load PDF: ${error.message}. Please ensure the file is a valid PDF and try again.`;
-                uploadError.style.display = 'block';
-            }
-        }
+            uploadArea.ondragover = (e) => {
+                e.preventDefault();
+                console.log('Drag over');
+                uploadArea.style.backgroundColor = '#e1e1e1';
+            };
 
-        function renderPage(num) {
-            pageRendering = true;
-            pdfJSDoc.getPage(num).then(page => {
-                const viewport = page.getViewport({ scale });
-                const pdfCanvas = document.getElementById('pdf-canvas');
-                pdfCanvas.height = viewport.height;
-                pdfCanvas.width = viewport.width;
-                const renderContext = {
-                    canvasContext: pdfCanvas.getContext('2d'),
-                    viewport
-                };
-                page.render(renderContext).promise.then(() => {
-                    pageRendering = false;
-                    if (pageNumPending !== null) {
-                        renderPage(pageNumPending);
-                        pageNumPending = null;
+            uploadArea.ondragleave = () => {
+                console.log('Drag leave');
+                uploadArea.style.backgroundColor = '';
+            };
+
+            uploadArea.ondrop = (e) => {
+                e.preventDefault();
+                console.log('File dropped', e.dataTransfer.files);
+                uploadArea.style.backgroundColor = '';
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type === 'application/pdf') {
+                        handleFile(file);
+                    } else {
+                        uploadError.textContent = 'Invalid file type. Please upload a PDF file.';
+                        uploadError.style.display = 'block';
                     }
-                });
-
-                // Initialize fabric canvas
-                if (!currentFabricCanvas) {
-                    currentFabricCanvas = new fabric.Canvas('fabric-canvas', {
-                        width: viewport.width,
-                        height: viewport.height
-                    });
-                    currentFabricCanvas.on('object:modified', saveHistory);
-                    currentFabricCanvas.on('object:added', saveHistory);
-                    currentFabricCanvas.on('object:removed', saveHistory);
-                    currentFabricCanvas.on('selection:created', updateControls);
-                    currentFabricCanvas.on('selection:updated', updateControls);
-                    currentFabricCanvas.on('selection:cleared', clearControls);
+                } else {
+                    uploadError.textContent = 'No file dropped. Please try again.';
+                    uploadError.style.display = 'block';
                 }
-                currentFabricCanvas.clear();
-                fabricCanvases[num].forEach(obj => {
-                    fabric.Object.fromObject(obj, (newObj) => {
-                        currentFabricCanvas.add(newObj);
+            };
+
+            async function handleFile(file) {
+                try {
+                    console.log('Handling file:', file.name);
+                    uploadError.style.display = 'none';
+                    originalPdfBytes = await file.arrayBuffer();
+                    pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
+                    const url = URL.createObjectURL(file);
+                    pdfJSDoc = await pdfjsLib.getDocument(url).promise;
+                    pageCount = pdfJSDoc.numPages;
+                    fabricCanvases = new Array(pageCount + 1).fill([]); // index 1 to pageCount
+                    pageNumDisplay.textContent = pageNum;
+                    pageCountDisplay.textContent = pageCount;
+                    renderPage(pageNum);
+                } catch (error) {
+                    console.error('Error loading PDF:', error);
+                    uploadError.textContent = `Failed to load PDF: ${error.message}. Please ensure the file is a valid PDF and try again.`;
+                    uploadError.style.display = 'block';
+                }
+            }
+
+            function renderPage(num) {
+                pageRendering = true;
+                pdfJSDoc.getPage(num).then(page => {
+                    const viewport = page.getViewport({ scale });
+                    const pdfCanvas = document.getElementById('pdf-canvas');
+                    pdfCanvas.height = viewport.height;
+                    pdfCanvas.width = viewport.width;
+                    const renderContext = {
+                        canvasContext: pdfCanvas.getContext('2d'),
+                        viewport
+                    };
+                    page.render(renderContext).promise.then(() => {
+                        pageRendering = false;
+                        if (pageNumPending !== null) {
+                            renderPage(pageNumPending);
+                            pageNumPending = null;
+                        }
                     });
+
+                    // Initialize fabric canvas
+                    if (!currentFabricCanvas) {
+                        currentFabricCanvas = new fabric.Canvas('fabric-canvas', {
+                            width: viewport.width,
+                            height: viewport.height
+                        });
+                        currentFabricCanvas.on('object:modified', saveHistory);
+                        currentFabricCanvas.on('object:added', saveHistory);
+                        currentFabricCanvas.on('object:removed', saveHistory);
+                        currentFabricCanvas.on('selection:created', updateControls);
+                        currentFabricCanvas.on('selection:updated', updateControls);
+                        currentFabricCanvas.on('selection:cleared', clearControls);
+                    }
+                    currentFabricCanvas.clear();
+                    fabricCanvases[num].forEach(obj => {
+                        fabric.Object.fromObject(obj, (newObj) => {
+                            currentFabricCanvas.add(newObj);
+                        });
+                    });
+                    currentFabricCanvas.setDimensions({ width: viewport.width, height: viewport.height });
+                    currentFabricCanvas.renderAll();
+                }).catch(error => {
+                    console.error('Error rendering page:', error);
+                    uploadError.textContent = `Failed to render PDF page: ${error.message}.`;
+                    uploadError.style.display = 'block';
                 });
-                currentFabricCanvas.setDimensions({ width: viewport.width, height: viewport.height });
-                currentFabricCanvas.renderAll();
-            }).catch(error => {
-                console.error('Error rendering page:', error);
-                uploadError.textContent = `Failed to render PDF page: ${error.message}.`;
-                uploadError.style.display = 'block';
-            });
-        }
-
-        function savePageEdits() {
-            fabricCanvases[pageNum] = currentFabricCanvas.getObjects().map(obj => obj.toObject());
-        }
-
-        function saveHistory() {
-            history = history.slice(0, historyIndex + 1);
-            history.push(JSON.stringify(currentFabricCanvas.toJSON()));
-            historyIndex = history.length - 1;
-        }
-
-        undoBtn.onclick = () => {
-            if (historyIndex > 0) {
-                historyIndex--;
-                currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
             }
-        };
 
-        redoBtn.onclick = () => {
-            if (historyIndex < history.length - 1) {
-                historyIndex++;
-                currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
+            function savePageEdits() {
+                fabricCanvases[pageNum] = currentFabricCanvas.getObjects().map(obj => obj.toObject());
             }
-        };
 
-        // Tool button handlers
-        textBoxBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = false;
-            const text = new fabric.Textbox('Edit me', {
-                left: 50,
-                top: 50,
-                fontSize: parseInt(fontSizeTextbox.value),
-                fill: fontColorTextbox.value,
-                width: 150,
-                fontFamily: fontFamilyTextbox.value,
-                backgroundColor: boxBackground.value,
-                stroke: boxBorder.value,
-                strokeWidth: 1
-            });
-            currentFabricCanvas.add(text);
-            currentFabricCanvas.setActiveObject(text);
-            saveHistory();
-        };
+            function saveHistory() {
+                history = history.slice(0, historyIndex + 1);
+                history.push(JSON.stringify(currentFabricCanvas.toJSON()));
+                historyIndex = history.length - 1;
+            }
 
-        drawBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = true;
-            currentFabricCanvas.freeDrawingBrush.color = drawColor.value;
-            currentFabricCanvas.freeDrawingBrush.width = parseInt(lineWidth.value);
-            currentFabricCanvas.freeDrawingBrush.strokeDashArray = lineStyle.value === 'dashed' ? [5, 5] : null;
-        };
+            undoBtn.onclick = () => {
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
+                }
+            };
 
-        highlightBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = false;
-            const highlight = new fabric.Rect({
-                left: 50,
-                top: 50,
-                width: 100,
-                height: 50,
-                fill: highlightColor.value,
-                opacity: opacity.value / 100,
-                isHighlight: true
-            });
-            currentFabricCanvas.add(highlight);
-            saveHistory();
-        };
+            redoBtn.onclick = () => {
+                if (historyIndex < history.length - 1) {
+                    historyIndex++;
+                    currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
+                }
+            };
 
-        shapesBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = false;
-            let shape;
-            const shapeType = selectShape.value;
-            if (shapeType === 'rectangle') {
-                shape = new fabric.Rect({
+            // Tool button handlers
+            textBoxBtn.onclick = () => {
+                currentFabricCanvas.isDrawingMode = false;
+                const text = new fabric.Textbox('Edit me', {
+                    left: 50,
+                    top: 50,
+                    fontSize: parseInt(fontSizeTextbox.value),
+                    fill: fontColorTextbox.value,
+                    width: 150,
+                    fontFamily: fontFamilyTextbox.value,
+                    backgroundColor: boxBackground.value,
+                    stroke: boxBorder.value,
+                    strokeWidth: 1
+                });
+                currentFabricCanvas.add(text);
+                currentFabricCanvas.setActiveObject(text);
+                saveHistory();
+            };
+
+            drawBtn.onclick = () => {
+                currentFabricCanvas.isDrawingMode = true;
+                currentFabricCanvas.freeDrawingBrush.color = drawColor.value;
+                currentFabricCanvas.freeDrawingBrush.width = parseInt(lineWidth.value);
+                currentFabricCanvas.freeDrawingBrush.strokeDashArray = lineStyle.value === 'dashed' ? [5, 5] : null;
+            };
+
+            highlightBtn.onclick = () => {
+                currentFabricCanvas.isDrawingMode = false;
+                const highlight = new fabric.Rect({
                     left: 50,
                     top: 50,
                     width: 100,
                     height: 50,
-                    fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
-                    stroke: shapeColor.value,
-                    strokeWidth: parseInt(borderWidth.value),
-                    opacity: fillStyle.value === 'transparent' ? 0.5 : 1
+                    fill: highlightColor.value,
+                    opacity: opacity.value / 100,
+                    isHighlight: true
                 });
-            } else if (shapeType === 'circle') {
-                shape = new fabric.Circle({
-                    left: 50,
-                    top: 50,
-                    radius: 50,
-                    fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
-                    stroke: shapeColor.value,
-                    strokeWidth: parseInt(borderWidth.value),
-                    opacity: fillStyle.value === 'transparent' ? 0.5 : 1
-                });
-            } else if (shapeType === 'arrow') {
-                shape = new fabric.Path('M 0 0 L 100 0 M 90 10 L 100 0 L 90 -10', {
-                    left: 50,
-                    top: 50,
-                    stroke: shapeColor.value,
-                    strokeWidth: parseInt(borderWidth.value),
-                    fill: 'none'
-                });
-            }
-            currentFabricCanvas.add(shape);
-            saveHistory();
-        };
-
-        // Font and text controls
-        fontFamily.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontFamily', e.target.value);
-                currentFabricCanvas.renderAll();
+                currentFabricCanvas.add(highlight);
                 saveHistory();
-            }
-        };
+            };
 
-        fontSize.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontSize', parseInt(e.target.value));
-                currentFabricCanvas.renderAll();
+            shapesBtn.onclick = () => {
+                currentFabricCanvas.isDrawingMode = false;
+                let shape;
+                const shapeType = selectShape.value;
+                if (shapeType === 'rectangle') {
+                    shape = new fabric.Rect({
+                        left: 50,
+                        top: 50,
+                        width: 100,
+                        height: 50,
+                        fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
+                        stroke: shapeColor.value,
+                        strokeWidth: parseInt(borderWidth.value),
+                        opacity: fillStyle.value === 'transparent' ? 0.5 : 1
+                    });
+                } else if (shapeType === 'circle') {
+                    shape = new fabric.Circle({
+                        left: 50,
+                        top: 50,
+                        radius: 50,
+                        fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
+                        stroke: shapeColor.value,
+                        strokeWidth: parseInt(borderWidth.value),
+                        opacity: fillStyle.value === 'transparent' ? 0.5 : 1
+                    });
+                } else if (shapeType === 'arrow') {
+                    shape = new fabric.Path('M 0 0 L 100 0 M 90 10 L 100 0 L 90 -10', {
+                        left: 50,
+                        top: 50,
+                        stroke: shapeColor.value,
+                        strokeWidth: parseInt(borderWidth.value),
+                        fill: 'none'
+                    });
+                }
+                currentFabricCanvas.add(shape);
                 saveHistory();
+            };
+
+            // Font and text controls
+            fontFamily.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontFamily', e.target.value);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            fontSize.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontSize', parseInt(e.target.value));
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            fontColor.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fill', e.target.value);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            boldBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            italicBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            underlineBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('underline', !active.underline);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            alignLeftBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('textAlign', 'left');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            alignCenterBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('textAlign', 'center');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            alignRightBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('textAlign', 'right');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            // Textbox controls
+            fontFamilyTextbox.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontFamily', e.target.value);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            fontSizeTextbox.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontSize', parseInt(e.target.value));
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            fontColorTextbox.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fill', e.target.value);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            boldTextboxBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            italicTextboxBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            underlineTextboxBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('underline', !active.underline);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            alignLeftTextboxBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('textAlign', 'left');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            alignCenterTextboxBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('textAlign', 'center');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            alignRightTextboxBtn.onclick = () => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('textAlign', 'right');
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            boxBackground.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('backgroundColor', e.target.value);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            boxBorder.onchange = (e) => {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    active.set('stroke', e.target.value);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            opacity.oninput = (e) => {
+                opacityValue.textContent = `${e.target.value}%`;
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.isHighlight) {
+                    active.set('opacity', e.target.value / 100);
+                    currentFabricCanvas.renderAll();
+                    saveHistory();
+                }
+            };
+
+            // Update controls when object selected
+            function updateControls() {
+                const active = currentFabricCanvas.getActiveObject();
+                if (active && active.type === 'textbox') {
+                    fontFamily.value = active.fontFamily || 'Arial';
+                    fontSize.value = active.fontSize || 12;
+                    fontColor.value = active.fill || '#000000';
+                    fontFamilyTextbox.value = active.fontFamily || 'Arial';
+                    fontSizeTextbox.value = active.fontSize || 12;
+                    fontColorTextbox.value = active.fill || '#000000';
+                    boxBackground.value = active.backgroundColor || '#ffffff';
+                    boxBorder.value = active.stroke || '#000000';
+                    boldBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
+                    italicBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
+                    underlineBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
+                    alignLeftBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
+                    alignCenterBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
+                    alignRightBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
+                    boldTextboxBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
+                    italicTextboxBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
+                    underlineTextboxBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
+                    alignLeftTextboxBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
+                    alignCenterTextboxBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
+                    alignRightTextboxBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
+                } else if (active && active.isHighlight) {
+                    highlightColor.value = active.fill || '#ffff00';
+                    opacity.value = (active.opacity * 100) || 70;
+                    opacityValue.textContent = `${opacity.value}%`;
+                }
             }
-        };
 
-        fontColor.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fill', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
+            function clearControls() {
+                fontFamily.value = 'Arial';
+                fontSize.value = 12;
+                fontColor.value = '#000000';
+                fontFamilyTextbox.value = 'Arial';
+                fontSizeTextbox.value = 12;
+                fontColorTextbox.value = '#000000';
+                boxBackground.value = '#ffffff';
+                boxBorder.value = '#000000';
+                boldBtn.style.backgroundColor = '#007bff';
+                italicBtn.style.backgroundColor = '#007bff';
+                underlineBtn.style.backgroundColor = '#007bff';
+                alignLeftBtn.style.backgroundColor = '#007bff';
+                alignCenterBtn.style.backgroundColor = '#007bff';
+                alignRightBtn.style.backgroundColor = '#007bff';
+                boldTextboxBtn.style.backgroundColor = '#007bff';
+                italicTextboxBtn.style.backgroundColor = '#007bff';
+                underlineTextboxBtn.style.backgroundColor = '#007bff';
+                alignLeftTextboxBtn.style.backgroundColor = '#007bff';
+                alignCenterTextboxBtn.style.backgroundColor = '#007bff';
+                alignRightTextboxBtn.style.backgroundColor = '#007bff';
+                highlightColor.value = '#ffff00';
+                opacity.value = 70;
+                opacityValue.textContent = '70%';
             }
-        };
 
-        boldBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        italicBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        underlineBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('underline', !active.underline);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignLeftBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'left');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignCenterBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'center');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignRightBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'right');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        // Textbox controls
-        fontFamilyTextbox.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontFamily', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        fontSizeTextbox.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontSize', parseInt(e.target.value));
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        fontColorTextbox.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fill', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        boldTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        italicTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        underlineTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('underline', !active.underline);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignLeftTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'left');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignCenterTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'center');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignRightTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'right');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        boxBackground.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('backgroundColor', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        boxBorder.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('stroke', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        opacity.oninput = (e) => {
-            opacityValue.textContent = `${e.target.value}%`;
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.isHighlight) {
-                active.set('opacity', e.target.value / 100);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        // Update controls when object selected
-        function updateControls() {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                fontFamily.value = active.fontFamily || 'Arial';
-                fontSize.value = active.fontSize || 12;
-                fontColor.value = active.fill || '#000000';
-                fontFamilyTextbox.value = active.fontFamily || 'Arial';
-                fontSizeTextbox.value = active.fontSize || 12;
-                fontColorTextbox.value = active.fill || '#000000';
-                boxBackground.value = active.backgroundColor || '#ffffff';
-                boxBorder.value = active.stroke || '#000000';
-                boldBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
-                italicBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
-                underlineBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
-                alignLeftBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
-                alignCenterBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
-                alignRightBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
-                boldTextboxBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
-                italicTextboxBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
-                underlineTextboxBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
-                alignLeftTextboxBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
-                alignCenterTextboxBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
-                alignRightTextboxBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
-            } else if (active && active.isHighlight) {
-                highlightColor.value = active.fill || '#ffff00';
-                opacity.value = (active.opacity * 100) || 70;
-                opacityValue.textContent = `${opacity.value}%`;
-            }
-        }
-
-        function clearControls() {
-            fontFamily.value = 'Arial';
-            fontSize.value = 12;
-            fontColor.value = '#000000';
-            fontFamilyTextbox.value = 'Arial';
-            fontSizeTextbox.value = 12;
-            fontColorTextbox.value = '#000000';
-            boxBackground.value = '#ffffff';
-            boxBorder.value = '#000000';
-            boldBtn.style.backgroundColor = '#007bff';
-            italicBtn.style.backgroundColor = '#007bff';
-            underlineBtn.style.backgroundColor = '#007bff';
-            alignLeftBtn.style.backgroundColor = '#007bff';
-            alignCenterBtn.style.backgroundColor = '#007bff';
-            alignRightBtn.style.backgroundColor = '#007bff';
-            boldTextboxBtn.style.backgroundColor = '#007bff';
-            italicTextboxBtn.style.backgroundColor = '#007bff';
-            underlineTextboxBtn.style.backgroundColor = '#007bff';
-            alignLeftTextboxBtn.style.backgroundColor = '#007bff';
-            alignCenterTextboxBtn.style.backgroundColor = '#007bff';
-            alignRightTextboxBtn.style.backgroundColor = '#007bff';
-            highlightColor.value = '#ffff00';
-            opacity.value = 70;
-            opacityValue.textContent = '70%';
-        }
-
-        // Page navigation
-        previousBtn.onclick = () => {
-            if (pageNum <= 1) return;
-            savePageEdits();
-            pageNum--;
-            pageNumDisplay.textContent = pageNum;
-            renderPage(pageNum);
-        };
-
-        nextBtn.onclick = () => {
-            if (pageNum >= pageCount) return;
-            savePageEdits();
-            pageNum++;
-            pageNumDisplay.textContent = pageNum;
-            renderPage(pageNum);
-        };
-
-        // Zoom
-        zoom.onchange = (e) => {
-            scale = parseFloat(e.target.value) / 100;
-            renderPage(pageNum);
-        };
-
-        // Save PDF
-        saveBtn.onclick = async () => {
-            try {
+            // Page navigation
+            previousBtn.onclick = () => {
+                if (pageNum <= 1) return;
                 savePageEdits();
-                const editedPdf = await PDFLib.PDFDocument.load(originalPdfBytes);
-                for (let p = 1; p <= pageCount; p++) {
-                    const page = editedPdf.getPage(p - 1);
-                    const { width, height } = page.getSize();
-                    const objects = fabricCanvases[p];
-                    for (let obj of objects) {
-                        const rgb = obj.fill ? new fabric.Color(obj.fill).getSource() : [0, 0, 0, 1];
-                        const color = PDFLib.rgb(rgb[0]/255, rgb[1]/255, rgb[2]/255);
-                        if (obj.type === 'textbox') {
-                            const font = await editedPdf.embedFont(PDFLib.StandardFonts.Helvetica);
-                            page.drawText(obj.text, {
-                                x: obj.left * (width / obj.canvas.width),
-                                y: height - (obj.top + obj.height) * (height / obj.canvas.height),
-                                size: obj.fontSize * scale,
-                                font,
-                                color,
-                                opacity: obj.opacity || 1
-                            });
-                        } else if (obj.type === 'rect') {
-                            page.drawRectangle({
-                                x: obj.left * (width / obj.canvas.width),
-                                y: height - (obj.top + obj.height) * (height / obj.canvas.height),
-                                width: obj.width * scale,
-                                height: obj.height * scale,
-                                color,
-                                opacity: obj.opacity,
-                                borderWidth: obj.strokeWidth * scale,
-                                borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
-                            });
-                        } else if (obj.type === 'circle') {
-                            page.drawCircle({
-                                x: (obj.left + obj.radius) * (width / obj.canvas.width),
-                                y: height - (obj.top + obj.radius) * (height / obj.canvas.height),
-                                size: obj.radius * scale,
-                                color,
-                                opacity: obj.opacity,
-                                borderWidth: obj.strokeWidth * scale,
-                                borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
-                            });
-                        } else if (obj.type === 'path') {
-                            page.drawLine({
-                                start: { x: obj.path[0][1] * (width / obj.canvas.width), y: height - obj.path[0][2] * (height / obj.canvas.height) },
-                                end: { x: obj.path[obj.path.length-1][1] * (width / obj.canvas.width), y: height - obj.path[obj.path.length-1][2] * (height / obj.canvas.height) },
-                                thickness: obj.strokeWidth * scale,
-                                color,
-                                opacity: obj.opacity
-                            });
+                pageNum--;
+                pageNumDisplay.textContent = pageNum;
+                renderPage(pageNum);
+            };
+
+            nextBtn.onclick = () => {
+                if (pageNum >= pageCount) return;
+                savePageEdits();
+                pageNum++;
+                pageNumDisplay.textContent = pageNum;
+                renderPage(pageNum);
+            };
+
+            // Zoom
+            zoom.onchange = (e) => {
+                scale = parseFloat(e.target.value) / 100;
+                renderPage(pageNum);
+            };
+
+            // Save PDF
+            saveBtn.onclick = async () => {
+                try {
+                    savePageEdits();
+                    const editedPdf = await PDFLib.PDFDocument.load(originalPdfBytes);
+                    for (let p = 1; p <= pageCount; p++) {
+                        const page = editedPdf.getPage(p - 1);
+                        const { width, height } = page.getSize();
+                        const objects = fabricCanvases[p];
+                        for (let obj of objects) {
+                            const rgb = obj.fill ? new fabric.Color(obj.fill).getSource() : [0, 0, 0, 1];
+                            const color = PDFLib.rgb(rgb[0]/255, rgb[1]/255, rgb[2]/255);
+                            if (obj.type === 'textbox') {
+                                const font = await editedPdf.embedFont(PDFLib.StandardFonts.Helvetica);
+                                page.drawText(obj.text, {
+                                    x: obj.left * (width / obj.canvas.width),
+                                    y: height - (obj.top + obj.height) * (height / obj.canvas.height),
+                                    size: obj.fontSize * scale,
+                                    font,
+                                    color,
+                                    opacity: obj.opacity || 1
+                                });
+                            } else if (obj.type === 'rect') {
+                                page.drawRectangle({
+                                    x: obj.left * (width / obj.canvas.width),
+                                    y: height - (obj.top + obj.height) * (height / obj.canvas.height),
+                                    width: obj.width * scale,
+                                    height: obj.height * scale,
+                                    color,
+                                    opacity: obj.opacity,
+                                    borderWidth: obj.strokeWidth * scale,
+                                    borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
+                                });
+                            } else if (obj.type === 'circle') {
+                                page.drawCircle({
+                                    x: (obj.left + obj.radius) * (width / obj.canvas.width),
+                                    y: height - (obj.top + obj.radius) * (height / obj.canvas.height),
+                                    size: obj.radius * scale,
+                                    color,
+                                    opacity: obj.opacity,
+                                    borderWidth: obj.strokeWidth * scale,
+                                    borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
+                                });
+                            } else if (obj.type === 'path') {
+                                page.drawLine({
+                                    start: { x: obj.path[0][1] * (width / obj.canvas.width), y: height - obj.path[0][2] * (height / obj.canvas.height) },
+                                    end: { x: obj.path[obj.path.length-1][1] * (width / obj.canvas.width), y: height - obj.path[obj.path.length-1][2] * (height / obj.canvas.height) },
+                                    thickness: obj.strokeWidth * scale,
+                                    color,
+                                    opacity: obj.opacity
+                                });
+                            }
                         }
                     }
+                    const editedBytes = await editedPdf.save();
+                    download(editedBytes, 'edited.pdf', 'application/pdf');
+                } catch (error) {
+                    console.error('Error saving PDF:', error);
+                    uploadError.textContent = `Failed to save PDF: ${error.message}.`;
+                    uploadError.style.display = 'block';
                 }
-                const editedBytes = await editedPdf.save();
-                download(editedBytes, 'edited.pdf', 'application/pdf');
-            } catch (error) {
-                console.error('Error saving PDF:', error);
-                uploadError.textContent = `Failed to save PDF: ${error.message}.`;
-                uploadError.style.display = 'block';
-            }
-        };
+            };
 
-        // Print
-        printBtn.onclick = () => {
-            window.print();
-        };
+            // Print
+            printBtn.onclick = () => {
+                window.print();
+            };
 
-        // Disable text button (placeholder in original UI)
-        textBtn.onclick = () => {
-            alert('Text tool is not implemented in this version.');
-        };
+            // Disable text button (placeholder in original UI)
+            textBtn.onclick = () => {
+                alert('Text tool is not implemented in this version.');
+            };
+        }
     </script>
 </body>
 </html>

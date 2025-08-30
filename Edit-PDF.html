@@ -53,7 +53,7 @@
 
     /* Layered canvases: base PDF canvas + annotation + drawing */
     #pdf-render-canvas { display:block; margin:40px auto; background:#fff; }
-    .annotation-canvas, .drawing-canvas { position:absolute; left:50%; transform:translateX(-50%); top:40px; pointer-events:none; }
+    .annotation-canvas, .drawing-canvas { position:absolute; pointer-events:none; }
     .drawing-canvas { pointer-events:auto; }
 
     .status-bar { background:#ecf0f1; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid #e2e8f0; }
@@ -225,6 +225,11 @@
   <!-- PDF.js (official CDN) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
   <script>
+    // Make sure PDF.js worker is set (fixes "worker not found" errors)
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
+    }
+
     // ---------- State ----------
     const state = {
       currentTool: 'textbox',
@@ -241,7 +246,7 @@
       historyIndex: -1
     };
 
-    // ---------- Elements (ids preserved to match your original) ----------
+    // ---------- Elements (ids preserved) ----------
     const elements = {
       homePage: document.getElementById('home-page'),
       uploadPage: document.getElementById('upload-page'),
@@ -294,7 +299,7 @@
       zoomResetBtn: document.getElementById('zoom-reset')
     };
 
-    // ---------- Navigation Views ----------
+    // ---------- Views ----------
     function showUploadPage(){ elements.homePage.style.display='none'; elements.uploadPage.style.display='block'; elements.editorContainer.style.display='none'; }
     function showHomePage(){ elements.homePage.style.display='block'; elements.uploadPage.style.display='none'; elements.editorContainer.style.display='none'; }
     function showEditor(){ elements.homePage.style.display='none'; elements.uploadPage.style.display='none'; elements.editorContainer.style.display='block'; }
@@ -304,11 +309,19 @@
 
     // ---------- PDF.js Rendering ----------
     async function loadPdfFromFile(file){
-      if(!file || file.type !== 'application/pdf'){ showToast('Please select a valid PDF file', 2500); return; }
+      if(!file){ showToast('No file selected',2000); return; }
+      // Accept files that are PDF by mime OR by filename fallback
+      const isPdf = (file.type && file.type === 'application/pdf') || file.name.toLowerCase().endsWith('.pdf');
+      if(!isPdf){ showToast('Please select a valid PDF file', 2500); return; }
+
       elements.loadingOverlay.style.display='flex';
       try{
         if(state.pdfFileUrl){ URL.revokeObjectURL(state.pdfFileUrl); }
         state.pdfFileUrl = URL.createObjectURL(file);
+
+        // ensure worker is set (redundant-safe)
+        if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
+
         const loadingTask = pdfjsLib.getDocument({ url: state.pdfFileUrl });
         state.pdfDoc = await loadingTask.promise;
         state.pageCount = state.pdfDoc.numPages;
@@ -319,42 +332,76 @@
         await renderPage();
         showEditor();
         showToast('PDF loaded successfully');
-      }catch(err){ console.error(err); showToast('Failed to load PDF'); }
+      }catch(err){ console.error('PDF load error:', err); showToast('Failed to load PDF'); }
       finally{ elements.loadingOverlay.style.display='none'; }
     }
 
     async function renderPage(){
+      if(!state.pdfDoc) return;
       const page = await state.pdfDoc.getPage(state.pageNum);
+      // viewport (use zoomLevel as percent)
       const viewport = page.getViewport({ scale: state.zoomLevel/100 });
       const canvas = elements.pdfCanvas;
       const ctx = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      // Position overlay canvases to match PDF size & center horizontally
-      positionOverlayCanvases();
+
+      // handle HiDPI: scale canvas backing store by devicePixelRatio and set CSS size to logical pixels
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(viewport.width * ratio);
+      canvas.height = Math.floor(viewport.height * ratio);
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
+      // scale drawing operations so 1 unit = 1 CSS pixel
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      // render PDF page into canvas
       const renderTask = page.render({ canvasContext: ctx, viewport });
       await renderTask.promise;
+
+      // After rendering, size/position overlay canvases to match
+      positionOverlayCanvases();
+      // Clear overlays (optional — you can preserve if you implement per-page persistence)
+      clearOverlays();
     }
 
     function positionOverlayCanvases(){
       const base = elements.pdfCanvas;
-      const pdfRect = base.getBoundingClientRect();
-      // Size overlays to match base canvas size
+      const parent = base.parentElement; // .pdf-content
+      const parentRect = parent.getBoundingClientRect();
+      const baseRect = base.getBoundingClientRect();
+      const left = baseRect.left - parentRect.left;
+      const top = baseRect.top - parentRect.top;
+      const ratio = window.devicePixelRatio || 1;
+
       [elements.annotationCanvas, elements.drawingCanvas].forEach(cv=>{
-        cv.width = base.width; cv.height = base.height; cv.style.width = base.style.width || base.width + 'px'; cv.style.height = base.style.height || base.height + 'px';
+        // set internal canvas pixel size to match base canvas pixel backing store
+        cv.width = base.width;   // base.width is device-pixel backing width
+        cv.height = base.height;
+        // set CSS size (so client coords are in CSS pixels)
+        cv.style.width = `${baseRect.width}px`;
+        cv.style.height = `${baseRect.height}px`;
+
+        // position canvas inside .pdf-content using pixel offsets relative to parent
+        cv.style.transform = 'none'; // override any CSS transform
+        cv.style.left = `${Math.round(left)}px`;
+        cv.style.top = `${Math.round(top)}px`;
+
+        // ensure the overlay context uses same scaling so 1 CSS px maps correctly
+        const cctx = cv.getContext('2d');
+        cctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       });
-      // Center overlays like base canvas (which is centered using margin:auto and top:40px)
-      const leftOffset = (base.parentElement.clientWidth - base.width) / 2;
-      elements.annotationCanvas.style.left = `calc(50% - ${base.width/2}px)`;
-      elements.drawingCanvas.style.left = `calc(50% - ${base.width/2}px)`;
-      elements.annotationCanvas.style.top = '40px';
-      elements.drawingCanvas.style.top = '40px';
+    }
+
+    function clearOverlays(){
+      [elements.annotationCanvas, elements.drawingCanvas].forEach(cv=>{
+        const ctx = cv.getContext('2d');
+        ctx.clearRect(0,0,cv.width,cv.height);
+      });
     }
 
     // ---------- File Upload / Drag & Drop ----------
     function wireUploadArea(){
       elements.uploadArea.addEventListener('click', ()=> elements.fileInputUpload.click());
-      elements.fileInputUpload.addEventListener('change', (e)=> loadPdfFromFile(e.target.files[0]));
+      elements.fileInputUpload.addEventListener('change', (e)=> { loadPdfFromFile(e.target.files[0]); e.target.value=''; });
       // Drag & drop
       ;['dragenter','dragover'].forEach(evt=> elements.uploadArea.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); elements.uploadArea.style.borderColor = '#3498db'; }));
       ;['dragleave','drop'].forEach(evt=> elements.uploadArea.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); elements.uploadArea.style.borderColor = '#9bbad6'; }));
@@ -368,32 +415,56 @@
     function zoomIn(){ state.zoomLevel += 10; elements.zoomResetBtn.textContent = `${state.zoomLevel}%`; renderPage(); }
     function zoomOut(){ if(state.zoomLevel>10){ state.zoomLevel -= 10; elements.zoomResetBtn.textContent = `${state.zoomLevel}%`; renderPage(); } }
     function zoomReset(){ state.zoomLevel = 100; elements.zoomResetBtn.textContent = '100%'; renderPage(); }
-    async function nextPage(){ if(state.pageNum < state.pageCount){ state.pageNum++; elements.pageNumElem.textContent = state.pageNum; await renderPage(); } }
-    async function prevPage(){ if(state.pageNum > 1){ state.pageNum--; elements.pageNumElem.textContent = state.pageNum; await renderPage(); } }
+    async function nextPage(){ if(state.pdfDoc && state.pageNum < state.pageCount){ state.pageNum++; elements.pageNumElem.textContent = state.pageNum; await renderPage(); } }
+    async function prevPage(){ if(state.pdfDoc && state.pageNum > 1){ state.pageNum--; elements.pageNumElem.textContent = state.pageNum; await renderPage(); } }
 
-    // ---------- Drawing (bug fixed: currentY used clientY, not clientX) ----------
-    function startDrawing(e){ if(state.currentTool!=='draw') return; state.drawing=true; const rect = elements.drawingCanvas.getBoundingClientRect(); state.lastX = e.clientX - rect.left; state.lastY = e.clientY - rect.top; }
-    function draw(e){ if(!state.drawing) return; const canvas = elements.drawingCanvas; const ctx = canvas.getContext('2d'); const rect = canvas.getBoundingClientRect(); const currentX = e.clientX - rect.left; const currentY = e.clientY - rect.top; ctx.beginPath(); ctx.moveTo(state.lastX, state.lastY); ctx.lineTo(currentX, currentY); ctx.strokeStyle = document.getElementById('draw-color').value; ctx.lineWidth = Number(document.getElementById('line-width').value)||3; ctx.lineCap='round'; ctx.stroke(); state.lastX=currentX; state.lastY=currentY; }
-    function stopDrawing(){ state.drawing=false; }
+    // ---------- Drawing (fixed + HiDPI aware) ----------
+    function startDrawing(e){
+      if(state.currentTool!=='draw') return;
+      state.drawing=true;
+      const rect = elements.drawingCanvas.getBoundingClientRect();
+      // use CSS pixel coordinates (context is scaled with setTransform)
+      state.lastX = e.clientX - rect.left;
+      state.lastY = e.clientY - rect.top;
+    }
+    function draw(e){
+      if(!state.drawing) return;
+      const canvas = elements.drawingCanvas;
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+      ctx.beginPath();
+      ctx.moveTo(state.lastX, state.lastY);
+      ctx.lineTo(currentX, currentY);
+      ctx.strokeStyle = document.getElementById('draw-color').value;
+      ctx.lineWidth = Number(document.getElementById('line-width').value)||3;
+      ctx.lineCap='round';
+      ctx.stroke();
+      state.lastX=currentX;
+      state.lastY=currentY;
+    }
+    function stopDrawing(){ if(state.drawing){ state.drawing=false; } }
 
     // ---------- Textbox (kept behavior minimal & same ids) ----------
     function createTextBox(){ setTool('textbox'); const id = `textbox-${state.textboxCounter++}`; const box = document.createElement('div'); box.className='textbox-container'; box.id=id; box.style.position='absolute'; box.style.left='60px'; box.style.top='60px'; box.style.width='220px'; box.style.height='80px'; box.style.backgroundColor=document.getElementById('textbox-bg-color').value; box.style.border = `1px solid ${document.getElementById('textbox-border-color').value}`; box.style.borderRadius='6px'; box.style.padding='6px'; box.style.zIndex=20; box.style.pointerEvents='auto';
       const ta = document.createElement('textarea'); ta.className='textbox-content'; ta.style.width='100%'; ta.style.height='100%'; ta.style.resize='none'; ta.style.border='none'; ta.style.outline='none'; ta.style.background='transparent'; ta.value='Type here…'; ta.style.fontFamily = document.getElementById('textbox-font-family').value; ta.style.fontSize = document.getElementById('textbox-font-size').value + 'px'; ta.style.color = document.getElementById('textbox-font-color').value; box.appendChild(ta); elements.pdfCanvas.parentElement.appendChild(box);
       // drag
-      let dragging=false, offsetX=0, offsetY=0; box.addEventListener('mousedown', (e)=>{ dragging=true; const r = box.getBoundingClientRect(); offsetX = e.clientX - r.left; offsetY = e.clientY - r.top; }); document.addEventListener('mousemove', (e)=>{ if(!dragging) return; const parentRect = elements.pdfCanvas.getBoundingClientRect(); box.style.left = (e.clientX - parentRect.left - offsetX) + 'px'; box.style.top = (e.clientY - parentRect.top - offsetY) + 'px'; }); document.addEventListener('mouseup', ()=> dragging=false);
+      let dragging=false, offsetX=0, offsetY=0;
+      box.addEventListener('mousedown', (e)=>{ dragging=true; const r = box.getBoundingClientRect(); offsetX = e.clientX - r.left; offsetY = e.clientY - r.top; });
+      document.addEventListener('mousemove', (e)=>{ if(!dragging) return; const parentRect = elements.pdfCanvas.getBoundingClientRect(); box.style.left = (e.clientX - parentRect.left - offsetX) + 'px'; box.style.top = (e.clientY - parentRect.top - offsetY) + 'px'; });
+      document.addEventListener('mouseup', ()=> dragging=false);
     }
 
     // ---------- Save / Print (basic) ----------
     function savePdf(){ showToast('Note: This demo saves annotations as an image layer. For producing a new PDF, integrate pdf-lib/jspdf as needed.'); }
     function printPdf(){ window.print(); }
 
-    // ---------- Share (kept) ----------
+    // ---------- Share ----------
     function shareOnSocialMedia(){ const shareText = 'Check out this PDF editor!'; const shareUrl = window.location.href; if(navigator.share){ navigator.share({ title:'PDF Editor', text:shareText, url:shareUrl }).catch(()=>{}); } else { window.open(`https://wa.me/?text=${encodeURIComponent(shareText+' '+shareUrl)}`,'_blank'); } }
 
     // ---------- Init ----------
     function init(){
-      // nav
-      document.addEventListener('DOMContentLoaded', ()=>{});
       elements.editPdfBtn.addEventListener('click', showUploadPage);
       elements.backBtn.addEventListener('click', showHomePage);
       elements.shareBtn.addEventListener('click', shareOnSocialMedia);
@@ -403,6 +474,10 @@
       elements.textboxToolBtn.addEventListener('click', createTextBox);
       elements.drawToolBtn.addEventListener('click', ()=> setTool('draw'));
       elements.textToolBtn.addEventListener('click', ()=> setTool('text'));
+
+      // Save/print
+      elements.savePdfBtn && elements.savePdfBtn.addEventListener('click', savePdf);
+      elements.printPdfBtn && elements.printPdfBtn.addEventListener('click', printPdf);
 
       // zoom + pages
       elements.zoomInBtn.addEventListener('click', zoomIn);

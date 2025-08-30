@@ -1,912 +1,734 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>PDF Editor</title>
-    <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <script src="https://unpkg.com/downloadjs@1.4.7"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 1200px;
-            margin: auto;
-        }
-        .header {
-            text-align: center;
-            padding: 20px 0;
-        }
-        .header h1 {
-            font-size: 2em;
-            margin-bottom: 10px;
-        }
-        .header h2 {
-            font-size: 1.2em;
-            color: #555;
-        }
-        .upload-area {
-            border: 2px dashed #ccc;
-            padding: 20px;
-            text-align: center;
-            margin: 20px 0;
-            cursor: pointer;
-        }
-        .upload-area:hover {
-            background-color: #f9f9f9;
-        }
-        .social-share, .back-home {
-            text-align: center;
-            margin: 20px 0;
-        }
-        .social-share a, .back-home a {
-            color: #007bff;
-            text-decoration: none;
-        }
-        .article {
-            margin: 20px 0;
-        }
-        .article h2 {
-            font-size: 1.5em;
-        }
-        .article p {
-            margin: 10px 0;
-        }
-        .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            margin: 5px;
-            cursor: pointer;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            text-align: center;
-        }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        #preview {
-            position: relative;
-            width: 100%;
-            height: 600px;
-            border: 1px solid #ccc;
-            margin: 20px 0;
-        }
-        #pdf-canvas {
-            display: block;
-        }
-        #fabric-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        .tool-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        .tool-options h3 {
-            width: 100%;
-            font-size: 1.2em;
-        }
-        .tool-buttons, .font-controls, .text-controls, .draw-controls, .highlight-controls, .shape-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        select, input[type="color"], input[type="range"] {
-            padding: 5px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
-        .page-controls {
-            text-align: center;
-            margin: 10px 0;
-        }
-        .pdf-preview p {
-            margin: 10px 0;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 20px;
-            color: #555;
-        }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PDF Editor — Full Editor (Export, Draw, Text, Shapes)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<style>
+  /* --- Keep the look & feel similar to your original --- */
+  *{box-sizing:border-box;font-family:"Segoe UI",Tahoma,Arial,sans-serif}
+  body{background:linear-gradient(135deg,#6a11cb 0%,#2575fc 100%);margin:0;min-height:100vh;color:#222;padding:20px;display:flex;justify-content:center}
+  .container{width:100%;max-width:1200px}
+  .home-page{text-align:center;color:#fff;margin-bottom:18px}
+  .home-page h1{font-size:2.2rem;margin-bottom:6px}
+  .btn{background:#3498db;color:#fff;border:none;padding:10px 14px;border-radius:8px;cursor:pointer}
+  .btn.secondary{background:#95a5a6}
+  .upload-page{background:#fff;border-radius:12px;padding:18px;margin-top:12px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+  .upload-area{border:2px dashed #9bbad6;border-radius:10px;padding:24px;text-align:center;cursor:pointer;background:#f8fbff}
+  .editor-container{display:none;background:#fff;border-radius:12px;padding:0;margin-top:18px;box-shadow:0 10px 30px rgba(0,0,0,.12);overflow:hidden}
+  .toolbar{background:#2c3e50;color:#fff;padding:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .toolbar .group{display:flex;gap:8px;align-items:center;padding-right:12px;border-right:1px solid rgba(255,255,255,.06)}
+  .toolbar button{background:#3498db;border:none;color:#fff;padding:8px 10px;border-radius:6px;cursor:pointer}
+  .tool-active{outline:2px solid #7ec8ff}
+  .pdf-viewer{height:70vh;overflow:auto;background:#f0f3f5;display:flex;justify-content:center;padding:18px}
+  .pdf-page{position:relative;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.08);width:816px;margin:0 auto;overflow:visible}
+  canvas#pdf-canvas{display:block}
+  canvas.overlay{position:absolute;left:0;top:0;pointer-events:none}
+  canvas.drawing{pointer-events:auto}
+  .status{background:#ecf0f1;padding:10px 14px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+  .controls{display:flex;gap:8px;align-items:center}
+  .submenu{background:#fff;padding:10px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);display:flex;gap:8px;align-items:center}
+  .color-input{width:36px;height:34px;border:none;padding:0;cursor:pointer}
+  .small{padding:6px 8px;font-size:13px}
+  .textbox-container{position:absolute;border:1px solid #3498db;border-radius:6px;padding:4px;background:rgba(255,255,255,0.98);resize:both;overflow:auto}
+  .textbox-container textarea{width:100%;height:100%;border:none;background:transparent;outline:none;resize:none}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:#222;color:#fff;padding:8px 12px;border-radius:8px;opacity:0;transition:opacity .25s}
+  .toast.show{opacity:1}
+  .file-controls{display:flex;gap:8px;align-items:center}
+  /* responsive */
+  @media (max-width:900px){ .pdf-page{width:90vw} }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>PDF Editor Plugin</h1>
-            <h2>Advanced text box tools for your PDF editor</h2>
-            <button class="btn">EDIT PDF</button>
-        </div>
+<div class="container">
+  <div id="home" class="home-page">
+    <h1>PDF Editor Plugin — Full Editor</h1>
+    <p>Upload, annotate, export — all in the browser</p>
+    <button id="go-edit" class="btn"><i class="fas fa-edit"></i> EDIT PDF</button>
+  </div>
 
-        <div class="upload-area">
-            <h3>Upload Your PDF</h3>
-            <p>Select a PDF file to start editing</p>
-            <div class="drag-drop">
-                <p>Drag & Drop your PDF here</p>
-                <p>or click to browse files</p>
-            </div>
-            <input type="file" id="file-input" accept=".pdf" style="display: none;">
-        </div>
+  <div id="upload" class="upload-page" style="display:none">
+    <h3>Upload a PDF</h3>
+    <div id="uploadArea" class="upload-area">
+      <p><i class="fas fa-file-upload fa-2x"></i></p>
+      <p>Click here or drag & drop a PDF file</p>
+      <input id="fileInput" type="file" accept="application/pdf" style="display:none"/>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button id="backHome" class="btn secondary"><i class="fas fa-arrow-left"></i> Back</button>
+    </div>
+  </div>
 
-        <div class="social-share">
-            <a href="#">Sharing is Caring</a>
-        </div>
-        <div class="back-home">
-            <a href="#">Back to Home</a>
-        </div>
+  <div id="editor" class="editor-container" aria-hidden="true">
+    <div class="toolbar">
+      <div class="group">
+        <button id="saveBtn" class="small btn"><i class="fas fa-save"></i> Save</button>
+        <button id="printBtn" class="small btn"><i class="fas fa-print"></i> Print</button>
+      </div>
 
-        <div class="article">
-            <h2>The Ultimate Guide to PDF Editing: Unlock the Power of Free Tools</h2>
-            <p>In today's digital world, the ability to <strong>Edit PDF Free</strong> has become an essential skill for professionals, students, and everyday users alike. Portable Document Format (PDF) files are ubiquitous in our daily workflows, from business contracts and academic papers to personal documents and forms. The need to modify these documents without expensive software has led to the rise of powerful online tools that allow anyone to <strong>Edit PDF Free</strong> with ease.</p>
-            <p>The journey to find the perfect solution to <strong>Edit PDF Free</strong> begins with understanding what makes these tools so valuable. Unlike proprietary software that requires expensive licenses and complex installations, free PDF editors offer accessibility and convenience. With just an internet connection, users can upload their documents, make necessary changes, and download the revised files without spending a dime. This democratization of document editing has revolutionized how we handle digital paperwork.</p>
-            <p>When looking to <strong>Edit PDF Free</strong>, users will discover a wide range of features typically available. These include text editing capabilities that allow you to modify existing content, add new text, change fonts, and adjust formatting. Advanced tools even provide options for adding images, shapes, and annotations to make your documents more informative and visually appealing. The ability to highlight important sections, add comments, and draw attention to specific content makes these tools invaluable for collaborative work.</p>
-            <p>One of the most significant advantages when you <strong>Edit PDF Free</strong> is the elimination of software compatibility issues. Traditional desktop applications often require specific operating systems or hardware configurations, but web-based PDF editors work across platforms. Whether you're using Windows, macOS, Chrome OS, or even mobile devices, you can access these tools through your web browser without worrying about system requirements.</p>
-            <p>Security concerns are paramount when dealing with sensitive documents, and reputable free PDF editors address these issues with robust encryption and privacy policies. When you <strong>Edit PDF Free</strong> using trusted platforms, your documents are typically processed securely with SSL encryption, and many services automatically delete your files from their servers after a short period. This ensures that your confidential information remains protected throughout the editing process.</p>
-            <p>The user experience when you <strong>Edit PDF Free</strong> has improved dramatically in recent years. Modern interfaces are intuitive and user-friendly, with drag-and-drop functionality, clear toolbars, and contextual menus. Even those with limited technical expertise can quickly learn to navigate these platforms and perform complex editing tasks. Tutorials and help sections are often available to guide users through more advanced features.</p>
-            <p>Beyond basic editing, many free PDF tools offer additional functionality that enhances productivity. Features like document merging, splitting, compression, and conversion to other formats (such as Word, Excel, or PowerPoint) provide comprehensive document management solutions. This means you can handle all your PDF-related tasks in one place without switching between different applications.</p>
-            <p>For students, the ability to <strong>Edit PDF Free</strong> is particularly valuable. Academic materials are frequently distributed as PDFs, and being able to annotate lecture notes, highlight textbook passages, and add comments to research papers significantly enhances the learning experience. Group projects become more manageable when multiple students can collaborate on the same document with editing tools designed for teamwork.</p>
-            <p>In professional settings, the convenience to <strong>Edit PDF Free</strong> streamlines workflows and reduces operational costs. Businesses can avoid expensive software subscriptions while still maintaining the ability to modify contracts, update reports, and customize presentations. The time saved by quickly making changes to documents rather than recreating them from scratch translates to increased efficiency and productivity.</p>
-            <p>As technology continues to evolve, we uts HTML document from the user:
-            <p>When selecting a platform to <strong>Edit PDF Free</strong>, it's important to consider factors beyond just the cost. Look for tools with a clean interface, responsive customer support, and regular updates. Reading reviews and testing different options can help you find the solution that best fits your specific needs and workflow preferences.</p>
-            <p>In conclusion, the power to <strong>Edit PDF Free</strong> has transformed how we interact with digital documents. These tools have broken down barriers to access, allowing everyone from individuals to large organizations to manipulate PDF files without financial constraints. As these platforms continue to improve and offer more sophisticated features, they will undoubtedly remain essential components of our digital toolkit for years to come.</p>
-        </div>
+      <div class="group">
+        <button id="toolSelect" class="small btn tool-active"><i class="fas fa-mouse-pointer"></i> Select</button>
+        <button id="toolDraw" class="small btn"><i class="fas fa-pen"></i> Draw</button>
+        <button id="toolText" class="small btn"><i class="fas fa-font"></i> Text</button>
+        <button id="toolShape" class="small btn"><i class="fas fa-square-root-alt"></i> Shapes</button>
+        <button id="toolHighlight" class="small btn"><i class="fas fa-highlighter"></i> Highlight</button>
+      </div>
 
-        <div class="tool-options">
-            <h3>Tools</h3>
-            <div class="tool-buttons">
-                <button class="btn" id="save">Save</button>
-                <button class="btn" id="print">Print</button>
-                <button class="btn" id="text">Text</button>
-                <button class="btn" id="text-box">Text Box</button>
-                <button class="btn" id="draw">Draw</button>
-                <button class="btn" id="highlight">Highlight</button>
-                <button class="btn" id="shapes">Shapes</button>
-                <button class="btn" id="undo">Undo</button>
-                <button class="btn" id="redo">Redo</button>
-            </div>
-            <div class="font-controls">
-                <select id="font-family">
-                    <option value="Arial">Arial</option>
-                    <option value="Helvetica">Helvetica</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                    <option value="Courier New">Courier New</option>
-                    <option value="Verdana">Verdana</option>
-                    <option value="Georgia">Georgia</option>
-                    <option value="Palatino">Palatino</option>
-                    <option value="Garamond">Garamond</option>
-                    <option value="Comic Sans MS">Comic Sans MS</option>
-                    <option value="Impact">Impact</option>
-                    <option value="Tahoma">Tahoma</option>
-                    <option value="Trebuchet MS">Trebuchet MS</option>
-                </select>
-                <select id="font-size">
-                    <option value="8">8px</option>
-                    <option value="10">10px</option>
-                    <option value="12">12px</option>
-                    <option value="14">14px</option>
-                    <option value="16">16px</option>
-                    <option value="18">18px</option>
-                    <option value="20">20px</option>
-                    <option value="24">24px</option>
-                    <option value="28">28px</option>
-                    <option value="32">32px</option>
-                    <option value="36">36px</option>
-                    <option value="40">40px</option>
-                </select>
-                <input type="color" id="font-color" value="#000000">
-                <button class="btn" id="bold">Bold</button>
-                <button class="btn" id="italic">Italic</button>
-                <button class="btn" id="underline">Underline</button>
-                <button class="btn" id="align-left">Align Left</button>
-                <button class="btn" id="align-center">Align Center</button>
-                <button class="btn" id="align-right">Align Right</button>
-                <button class="btn" id="valign-top">Top</button>
-                <button class="btn" id="valign-middle">Middle</button>
-                <button class="btn" id="valign-bottom">Bottom</button>
-            </div>
-            <div class="text-controls">
-                <select id="font-family-textbox">
-                    <option value="Arial">Arial</option>
-                    <option value="Helvetica">Helvetica</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                    <option value="Courier New">Courier New</option>
-                    <option value="Verdana">Verdana</option>
-                    <option value="Georgia">Georgia</option>
-                    <option value="Palatino">Palatino</option>
-                    <option value="Garamond">Garamond</option>
-                    <option value="Comic Sans MS">Comic Sans MS</option>
-                    <option value="Impact">Impact</option>
-                    <option value="Tahoma">Tahoma</option>
-                    <option value="Trebuchet MS">Trebuchet MS</option>
-                </select>
-                <select id="font-size-textbox">
-                    <option value="8">8px</option>
-                    <option value="10">10px</option>
-                    <option value="12">12px</option>
-                    <option value="14">14px</option>
-                    <option value="16">16px</option>
-                    <option value="18">18px</option>
-                    <option value="20">20px</option>
-                    <option value="24">24px</option>
-                    <option value="28">28px</option>
-                    <option value="32">32px</option>
-                    <option value="36">36px</option>
-                    <option value="40">40px</option>
-                </select>
-                <input type="color" id="font-color-textbox" value="#000000">
-                <button class="btn" id="bold-textbox">Bold</button>
-                <button class="btn" id="italic-textbox">Italic</button>
-                <button class="btn" id="underline-textbox">Underline</button>
-                <button class="btn" id="align-left-textbox">Align Left</button>
-                <button class="btn" id="align-center-textbox">Align Center</button>
-                <button class="btn" id="align-right-textbox">Align Right</button>
-                <button class="btn" id="valign-top-textbox">Top</button>
-                <button class="btn" id="valign-middle-textbox">Middle</button>
-                <button class="btn" id="valign-bottom-textbox">Bottom</button>
-                <input type="color" id="box-background" value="#ffffff">
-                <input type="color" id="box-border" value="#000000">
-            </div>
-            <div class="draw-controls">
-                <input type="color" id="draw-color" value="#000000">
-                <select id="line-width">
-                    <option value="1">1px</option>
-                    <option value="2">2px</option>
-                    <option value="3">3px</option>
-                    <option value="5">5px</option>
-                    <option value="10">10px</option>
-                </select>
-                <select id="line-style">
-                    <option value="solid">Solid</option>
-                    <option value="dashed">Dashed</option>
-                </select>
-            </div>
-            <div class="highlight-controls">
-                <input type="color" id="highlight-color" value="#ffff00">
-                <div class="quick-colors">
-                    <button class="btn" style="background-color: #ffff00;" onclick="document.getElementById('highlight-color').value='#ffff00'"></button>
-                    <button class="btn" style="background-color: #ff0000;" onclick="document.getElementById('highlight-color').value='#ff0000'"></button>
-                    <button class="btn" style="background-color: #00ff00;" onclick="document.getElementById('highlight-color').value='#00ff00'"></button>
-                    <button class="btn" style="background-color: #0000ff;" onclick="document.getElementById('highlight-color').value='#0000ff'"></button>
-                </div>
-                <input type="range" id="opacity" min="0" max="100" value="70">
-                <label>Opacity: <span id="opacity-value">70%</span></label>
-            </div>
-            <div class="shape-controls">
-                <input type="color" id="shape-color" value="#000000">
-                <select id="border-width">
-                    <option value="1">1px</option>
-                    <option value="2">2px</option>
-                    <option value="3">3px</option>
-                    <option value="5">5px</option>
-                </select>
-                <select id="fill-style">
-                    <option value="solid">Solid Fill</option>
-                    <option value="gradient">Gradient</option>
-                    <option value="transparent">Transparent</option>
-                </select>
-                <select id="select-shape">
-                    <option value="rectangle">Rectangle</option>
-                    <option value="circle">Circle</option>
-                    <option value="arrow">Arrow</option>
-                </select>
-            </div>
-            <div class="zoom-controls">
-                <select id="zoom">
-                    <option value="100">100%</option>
-                    <option value="50">50%</option>
-                    <option value="75">75%</option>
-                    <option value="125">125%</option>
-                    <option value="150">150%</option>
-                    <option value="200">200%</option>
-                </select>
-            </div>
-        </div>
+      <div class="group submenu">
+        <label>Color</label>
+        <input id="colorPick" class="color-input" type="color" value="#ff2d2d" title="Primary color">
+        <label>Width</label>
+        <input id="widthPick" type="number" value="3" min="1" max="40" style="width:64px;padding:6px;border-radius:6px;border:1px solid #ddd">
+        <button id="undoBtn" class="small btn"><i class="fas fa-undo"></i></button>
+        <button id="redoBtn" class="small btn"><i class="fas fa-redo"></i></button>
+      </div>
 
-        <div class="pdf-preview" id="preview">
-            <h3>PDF Document Preview</h3>
-            <p>Open a PDF file or create a new document to start editing</p>
-            <p>This is a sample text. Use the text box tool to add customizable text boxes.</p>
-            <canvas id="pdf-canvas"></canvas>
-            <canvas id="fabric-canvas"></canvas>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <div class="file-controls">
+          <button id="exportJSON" class="small btn">Export JSON</button>
+          <button id="importJSON" class="small btn">Import JSON</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none"/>
         </div>
-
-        <div class="page-controls">
-            <span>Page: <span id="page-num">1</span> / <span id="page-count">1</span></span>
-            <button class="btn" id="previous">Previous</button>
-            <button class="btn" id="next">Next</button>
+        <div>
+          <button id="zoomOut" class="small btn">-</button>
+          <button id="zoomReset" class="small btn">100%</button>
+          <button id="zoomIn" class="small btn">+</button>
         </div>
-
-        <div class="footer">
-            PDF Editor Plugin © 2023 - Advanced Text Box Tools
-        </div>
+      </div>
     </div>
 
-    <script>
-        // Global variables
-        let pdfJSDoc = null;
-        let pdfLibDoc = null;
-        let pageNum = 1;
-        let pageCount = 0;
-        let scale = 1.0;
-        let pageRendering = false;
-        let pageNumPending = null;
-        let originalPdfBytes = null;
-        let fabricCanvases = [];
-        let currentFabricCanvas = null;
-        let history = [];
-        let historyIndex = -1;
+    <div class="pdf-viewer" id="viewer">
+      <div class="pdf-page" id="pageRoot">
+        <canvas id="pdf-canvas"></canvas>
+        <!-- overlay canvases (annotation raster, drawing) -->
+        <canvas id="anno-canvas" class="overlay"></canvas>
+        <canvas id="draw-canvas" class="overlay drawing"></canvas>
+        <!-- textboxes/shapes will be DOM elements appended here -->
+      </div>
+    </div>
 
-        // Select elements
-        const uploadArea = document.querySelector('.upload-area');
-        const fileInput = document.getElementById('file-input');
-        const saveBtn = document.getElementById('save');
-        const printBtn = document.getElementById('print');
-        const textBtn = document.getElementById('text');
-        const textBoxBtn = document.getElementById('text-box');
-        const drawBtn = document.getElementById('draw');
-        const highlightBtn = document.getElementById('highlight');
-        const shapesBtn = document.getElementById('shapes');
-        const undoBtn = document.getElementById('undo');
-        const redoBtn = document.getElementById('redo');
-        const fontFamily = document.getElementById('font-family');
-        const fontSize = document.getElementById('font-size');
-        const fontColor = document.getElementById('font-color');
-        const boldBtn = document.getElementById('bold');
-        const italicBtn = document.getElementById('italic');
-        const underlineBtn = document.getElementById('underline');
-        const alignLeftBtn = document.getElementById('align-left');
-        const alignCenterBtn = document.getElementById('align-center');
-        const alignRightBtn = document.getElementById('align-right');
-        const valignTopBtn = document.getElementById('valign-top');
-        const valignMiddleBtn = document.getElementById('valign-middle');
-        const valignBottomBtn = document.getElementById('valign-bottom');
-        const fontFamilyTextbox = document.getElementById('font-family-textbox');
-        const fontSizeTextbox = document.getElementById('font-size-textbox');
-        const fontColorTextbox = document.getElementById('font-color-textbox');
-        const boldTextboxBtn = document.getElementById('bold-textbox');
-        const italicTextboxBtn = document.getElementById('italic-textbox');
-        const underlineTextboxBtn = document.getElementById('underline-textbox');
-        const alignLeftTextboxBtn = document.getElementById('align-left-textbox');
-        const alignCenterTextboxBtn = document.getElementById('align-center-textbox');
-        const alignRightTextboxBtn = document.getElementById('align-right-textbox');
-        const valignTopTextboxBtn = document.getElementById('valign-top-textbox');
-        const valignMiddleTextboxBtn = document.getElementById('valign-middle-textbox');
-        const valignBottomTextboxBtn = document.getElementById('valign-bottom-textbox');
-        const boxBackground = document.getElementById('box-background');
-        const boxBorder = document.getElementById('box-border');
-        const drawColor = document.getElementById('draw-color');
-        const lineWidth = document.getElementById('line-width');
-        const lineStyle = document.getElementById('line-style');
-        const highlightColor = document.getElementById('highlight-color');
-        const opacity = document.getElementById('opacity');
-        const opacityValue = document.getElementById('opacity-value');
-        const shapeColor = document.getElementById('shape-color');
-        const borderWidth = document.getElementById('border-width');
-        const fillStyle = document.getElementById('fill-style');
-        const selectShape = document.getElementById('select-shape');
-        const zoom = document.getElementById('zoom');
-        const pageNumDisplay = document.getElementById('page-num');
-        const pageCountDisplay = document.getElementById('page-count');
-        const previousBtn = document.getElementById('previous');
-        const nextBtn = document.getElementById('next');
-        const preview = document.getElementById('preview');
+    <div class="status">
+      <div>Page <span id="pageNum">1</span> / <span id="pageCount">1</span></div>
+      <div class="controls">
+        <button id="prevPage" class="small btn"><i class="fas fa-chevron-left"></i> Prev</button>
+        <button id="nextPage" class="small btn">Next <i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+  </div>
 
-        // Handle file upload
-        uploadArea.onclick = () => fileInput.click();
-        fileInput.onchange = (e) => handleFile(e.target.files[0]);
-        uploadArea.ondragover = (e) => e.preventDefault();
-        uploadArea.ondrop = (e) => {
-            e.preventDefault();
-            handleFile(e.dataTransfer.files[0]);
-        };
+</div>
 
-        async function handleFile(file) {
-            originalPdfBytes = await file.arrayBuffer();
-            pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
-            const url = URL.createObjectURL(file);
-            pdfJSDoc = await pdfjsLib.getDocument(url).promise;
-            pageCount = pdfJSDoc.numPages;
-            fabricCanvases = new Array(pageCount + 1).fill([]); // index 1 to pageCount
-            pageNumDisplay.textContent = pageNum;
-            pageCountDisplay.textContent = pageCount;
-            renderPage(pageNum);
+<div id="toast" class="toast"></div>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
+<script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+<script>
+/* =========================
+   Full PDF Editor Script
+   =========================
+   Features:
+   - Upload (drag/drop + file picker)
+   - Render with PDF.js (worker configured)
+   - Drawing overlay with color/width, undo/redo
+   - Text boxes (dblclick to add), draggable/resizable
+   - Shapes: rect/ellipse/arrow (simple)
+   - Highlight rectangles
+   - Export/Import annotations JSON
+   - Save: flatten annotations into new PDF using pdf-lib
+*/
+
+/* ---------- Config & State ---------- */
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
+
+const state = {
+  pdfDoc: null,
+  pdfBytes: null,        // original uploaded ArrayBuffer
+  pageNum: 1,
+  pageCount: 1,
+  scale: 1.2,
+  fileName: 'edited.pdf',
+  tool: 'select',        // select | draw | text | shape | highlight
+  draw: {color:'#ff2d2d', width:3},
+  undoStack: [], redoStack: [],
+  annotations: {}, // per-page arrays of annotation objects
+  currentShape: null
+};
+
+/* ---------- Elements ---------- */
+const goEdit = document.getElementById('go-edit');
+const home = document.getElementById('home');
+const upload = document.getElementById('upload');
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const editor = document.getElementById('editor');
+const pdfCanvas = document.getElementById('pdf-canvas');
+const pdfCtx = pdfCanvas.getContext('2d');
+const annoCanvas = document.getElementById('anno-canvas');
+const annoCtx = annoCanvas.getContext('2d');
+const drawCanvas = document.getElementById('draw-canvas');
+const drawCtx = drawCanvas.getContext('2d');
+const pageRoot = document.getElementById('pageRoot');
+const pageNumEl = document.getElementById('pageNum');
+const pageCountEl = document.getElementById('pageCount');
+const toastEl = document.getElementById('toast');
+
+/* Controls */
+const saveBtn = document.getElementById('saveBtn');
+const printBtn = document.getElementById('printBtn');
+const toolSelect = document.getElementById('toolSelect');
+const toolDraw = document.getElementById('toolDraw');
+const toolText = document.getElementById('toolText');
+const toolShape = document.getElementById('toolShape');
+const toolHighlight = document.getElementById('toolHighlight');
+const colorPick = document.getElementById('colorPick');
+const widthPick = document.getElementById('widthPick');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+const exportJSON = document.getElementById('exportJSON');
+const importJSON = document.getElementById('importJSON');
+const importFile = document.getElementById('importFile');
+const zoomIn = document.getElementById('zoomIn');
+const zoomOut = document.getElementById('zoomOut');
+const zoomReset = document.getElementById('zoomReset');
+const prevPage = document.getElementById('prevPage');
+const nextPage = document.getElementById('nextPage');
+
+/* ---------- Utilities ---------- */
+function showToast(msg, t=1800){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'), t); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function clearCanvas(cctx){ cctx.clearRect(0,0,cctx.canvas.width, cctx.canvas.height); }
+
+/* ---------- UI Wiring (views) ---------- */
+goEdit.addEventListener('click', ()=>{ home.style.display='none'; upload.style.display='block'; });
+document.getElementById('backHome').addEventListener('click', ()=>{ home.style.display='block'; upload.style.display='none'; editor.style.display='none'; });
+
+/* ---------- Upload handling ---------- */
+uploadArea.addEventListener('click', ()=> fileInput.click());
+fileInput.addEventListener('change', e => {
+  if(e.target.files && e.target.files[0]) loadPdfFile(e.target.files[0]);
+  e.target.value = '';
+});
+['dragenter','dragover'].forEach(ev=> uploadArea.addEventListener(ev, e=> { e.preventDefault(); uploadArea.style.borderColor='#3498db'; }));
+['dragleave','drop'].forEach(ev=> uploadArea.addEventListener(ev, e=> { e.preventDefault(); uploadArea.style.borderColor='#9bbad6'; }));
+uploadArea.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0]; if(f) loadPdfFile(f);
+});
+
+/* ---------- PDF Loading & Rendering ---------- */
+async function loadPdfFile(file){
+  if(!(file.type==='application/pdf' || file.name.toLowerCase().endsWith('.pdf'))){
+    showToast('Please upload a PDF file');
+    return;
+  }
+  showToast('Loading PDF...');
+  state.fileName = file.name.replace(/\.pdf$/i,'') + '_edited.pdf';
+  const ab = await file.arrayBuffer();
+  state.pdfBytes = ab;
+  try {
+    const loadingTask = pdfjsLib.getDocument({data:ab});
+    state.pdfDoc = await loadingTask.promise;
+    state.pageCount = state.pdfDoc.numPages;
+    state.pageNum = 1;
+    pageCountEl.textContent = state.pageCount;
+    await renderPage();
+    upload.style.display='none';
+    editor.style.display='block';
+    showToast('PDF loaded');
+  } catch(err){
+    console.error('PDF load error', err);
+    showToast('Failed to load PDF');
+  }
+}
+
+async function renderPage(){
+  const page = await state.pdfDoc.getPage(state.pageNum);
+  const viewport = page.getViewport({scale: state.scale});
+  // HiDPI handling
+  const ratio = window.devicePixelRatio || 1;
+  pdfCanvas.width = Math.floor(viewport.width * ratio);
+  pdfCanvas.height = Math.floor(viewport.height * ratio);
+  pdfCanvas.style.width = `${Math.floor(viewport.width)}px`;
+  pdfCanvas.style.height = `${Math.floor(viewport.height)}px`;
+  pdfCtx.setTransform(ratio,0,0,ratio,0,0);
+
+  const renderTask = page.render({canvasContext: pdfCtx, viewport});
+  await renderTask.promise;
+
+  // Size overlays to match
+  resizeOverlays(viewport.width, viewport.height, ratio);
+
+  // Redraw annotations for this page
+  drawAllAnnotationsForPage(state.pageNum);
+  pageNumEl.textContent = state.pageNum;
+}
+
+/* ---------- Overlay sizing ---------- */
+function resizeOverlays(cssWidth, cssHeight, ratio){
+  [annoCanvas, drawCanvas].forEach(cvs => {
+    cvs.width = Math.floor(cssWidth * (ratio));
+    cvs.height = Math.floor(cssHeight * (ratio));
+    cvs.style.width = `${Math.floor(cssWidth)}px`;
+    cvs.style.height = `${Math.floor(cssHeight)}px`;
+    cvs.getContext('2d').setTransform(ratio,0,0,ratio,0,0);
+    // position the canvas to (0,0) inside pageRoot
+    cvs.style.left = '0px'; cvs.style.top = '0px';
+  });
+}
+
+/* ---------- Annotation model ----------
+ We'll store annotations as objects, per page:
+ state.annotations[page] = [ { type:'drawing', imageDataUrl:..., }, {type:'textbox', x,y,w,h,html,font,color,...}, {type:'shape', shapeType:'rect'|'ellipse'|'arrow', x,y,w,h, stroke, fill, width}, ... ]
+ ---------- */
+function ensurePageAnnotations(page){ if(!state.annotations[page]) state.annotations[page]=[]; return state.annotations[page]; }
+
+/* ---------- Drawing tool (freehand) ---------- */
+let isPointerDown = false;
+let lastPos = null;
+drawCanvas.addEventListener('pointerdown', e => {
+  if(state.tool !== 'draw') return;
+  isPointerDown = true;
+  const rect = drawCanvas.getBoundingClientRect();
+  lastPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  drawCtx.beginPath(); drawCtx.moveTo(lastPos.x, lastPos.y);
+});
+drawCanvas.addEventListener('pointermove', e => {
+  if(!isPointerDown || state.tool !== 'draw') return;
+  const rect = drawCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  drawCtx.lineTo(x,y);
+  drawCtx.strokeStyle = state.draw.color;
+  drawCtx.lineWidth = Number(state.draw.width) || 3;
+  drawCtx.lineCap = 'round';
+  drawCtx.stroke();
+  lastPos = {x,y};
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev => drawCanvas.addEventListener(ev, e => {
+  if(!isPointerDown) return;
+  if(state.tool !== 'draw') { isPointerDown=false; return; }
+  isPointerDown = false;
+  // Save drawing as annotation (rasterized image of overlay)
+  const ratio = window.devicePixelRatio || 1;
+  // Create a copy of current drawCanvas as data URL (CSS sized)
+  const cssW = drawCanvas.clientWidth, cssH = drawCanvas.clientHeight;
+  // To preserve CSS pixel coordinates we create temporary canvas
+  const tmp = document.createElement('canvas'); tmp.width = cssW; tmp.height = cssH;
+  const tmpCtx = tmp.getContext('2d');
+  // draw the drawing overlay onto tmp at CSS scale
+  tmpCtx.drawImage(drawCanvas, 0, 0, cssW, cssH);
+  const dataUrl = tmp.toDataURL('image/png');
+  const ann = { type:'drawing', img: dataUrl };
+  ensurePageAnnotations(state.pageNum).push(ann);
+  pushUndo({action:'add', page:state.pageNum, ann});
+  // clear drawCanvas (they are moved to anno layer)
+  clearCanvas(drawCtx);
+  drawAllAnnotationsForPage(state.pageNum);
+  state.redoStack = [];
+}));
+
+/* ---------- Draw all annotations for a page (raster/DOM) ---------- */
+function drawAllAnnotationsForPage(page){
+  clearCanvas(annoCtx);
+  // clear DOM textboxes/shapes (remove existing)
+  Array.from(pageRoot.querySelectorAll('.textbox-container, .shape-dom')).forEach(n=>n.remove());
+  const list = state.annotations[page] || [];
+  list.forEach(item => {
+    if(item.type === 'drawing'){
+      // image data on annoCtx scaled to CSS
+      const img = new Image();
+      img.onload = ()=> {
+        // draw fit to canvas
+        annoCtx.drawImage(img, 0, 0, drawCanvas.clientWidth, drawCanvas.clientHeight);
+      };
+      img.src = item.img;
+    } else if(item.type === 'textbox'){
+      // create DOM element (absolute positioned)
+      const el = document.createElement('div');
+      el.className = 'textbox-container';
+      el.style.left = item.x + 'px';
+      el.style.top = item.y + 'px';
+      el.style.width = item.w + 'px';
+      el.style.height = item.h + 'px';
+      el.style.borderColor = item.border || '#3498db';
+      el.style.background = item.bg || 'rgba(255,255,255,0.98)';
+      el.innerHTML = `<textarea>${item.text || ''}</textarea>`;
+      pageRoot.appendChild(el);
+      makeElementDraggableResizable(el, page);
+    } else if(item.type === 'shape'){
+      // either rasterize into anno canvas or create DOM overlay (we draw on annoCtx)
+      annoCtx.save();
+      annoCtx.beginPath();
+      annoCtx.lineWidth = item.strokeWidth || 2;
+      annoCtx.strokeStyle = item.stroke || '#000';
+      annoCtx.fillStyle = item.fill || 'rgba(0,0,0,0)';
+      if(item.shapeType === 'rect'){
+        annoCtx.fillRect(item.x, item.y, item.w, item.h);
+        annoCtx.strokeRect(item.x, item.y, item.w, item.h);
+      } else if(item.shapeType === 'ellipse'){
+        const cx = item.x + item.w/2, cy = item.y + item.h/2, rx = Math.abs(item.w/2), ry = Math.abs(item.h/2);
+        annoCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+        annoCtx.fill(); annoCtx.stroke();
+      } else if(item.shapeType === 'arrow'){
+        // simple arrow: line + triangle head
+        annoCtx.moveTo(item.x, item.y);
+        annoCtx.lineTo(item.x + item.w, item.y + item.h);
+        annoCtx.stroke();
+        // head
+        const ax = item.x + item.w, ay = item.y + item.h;
+        annoCtx.beginPath();
+        annoCtx.moveTo(ax, ay);
+        annoCtx.lineTo(ax - 10, ay - 6);
+        annoCtx.lineTo(ax - 6, ay - 10);
+        annoCtx.closePath();
+        annoCtx.fill();
+      }
+      annoCtx.restore();
+    } else if(item.type === 'highlight'){
+      annoCtx.save();
+      annoCtx.fillStyle = item.color || 'rgba(255,255,0,0.35)';
+      annoCtx.fillRect(item.x, item.y, item.w, item.h);
+      annoCtx.restore();
+    }
+  });
+}
+
+/* ---------- Make DOM element draggable/resizable ---------- */
+function makeElementDraggableResizable(el, page){
+  el.style.position = 'absolute';
+  el.style.cursor = 'move';
+  let dragging=false, offsetX=0, offsetY=0;
+  el.addEventListener('mousedown', e => {
+    dragging = true; offsetX = e.offsetX; offsetY = e.offsetY; el.style.zIndex = 999;
+  });
+  document.addEventListener('mousemove', e => {
+    if(!dragging) return;
+    const rect = pageRoot.getBoundingClientRect();
+    const nx = e.clientX - rect.left - offsetX, ny = e.clientY - rect.top - offsetY;
+    el.style.left = nx + 'px'; el.style.top = ny + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if(dragging){
+      dragging=false; el.style.zIndex = 10;
+      // update annotation in model
+      const idx = Array.from(pageRoot.querySelectorAll('.textbox-container')).indexOf(el);
+      // we can't easily map to model index — instead, on save/export we read DOM elements into model
+      updateTextboxesFromDOM(page);
+    }
+  });
+  // resizable - CSS resize property works, but on mouseup we'll update model
+  el.addEventListener('mouseup', ()=> updateTextboxesFromDOM(page));
+}
+
+/* ---------- Update textboxes model from DOM elements ---------- */
+function updateTextboxesFromDOM(page){
+  const nodes = Array.from(pageRoot.querySelectorAll('.textbox-container'));
+  // remove existing textbox annotations and append fresh ones
+  const anns = ensurePageAnnotations(page);
+  // filter out textboxes in anns
+  const nonText = anns.filter(a => a.type !== 'textbox');
+  const newText = nodes.map(n => {
+    const r = n.getBoundingClientRect();
+    const pr = pageRoot.getBoundingClientRect();
+    const x = r.left - pr.left, y = r.top - pr.top;
+    const w = r.width, h = r.height;
+    const text = n.querySelector('textarea').value;
+    return { type:'textbox', x,y,w,h,text, border:'#3498db', bg:'#fff' };
+  });
+  state.annotations[page] = nonText.concat(newText);
+  pushUndo({ action:'replaceTextbox', page, prev:anns, next: state.annotations[page]});
+}
+
+/* ---------- Tools switching ---------- */
+function setTool(t){
+  state.tool = t;
+  document.querySelectorAll('.toolbar button').forEach(b=>b.classList.remove('tool-active'));
+  if(t==='select') toolSelect.classList.add('tool-active');
+  if(t==='draw') toolDraw.classList.add('tool-active');
+  if(t==='text') toolText.classList.add('tool-active');
+  if(t==='shape') toolShape.classList.add('tool-active');
+  if(t==='highlight') toolHighlight.classList.add('tool-active');
+  // set pointer events
+  drawCanvas.style.pointerEvents = (t==='draw') ? 'auto' : 'none';
+}
+toolSelect.addEventListener('click', ()=> setTool('select'));
+toolDraw.addEventListener('click', ()=> setTool('draw'));
+toolText.addEventListener('click', ()=> setTool('text'));
+toolShape.addEventListener('click', ()=> setTool('shape'));
+toolHighlight.addEventListener('click', ()=> setTool('highlight'));
+
+/* ---------- Textbox creation on double-click ---------- */
+pageRoot.addEventListener('dblclick', e => {
+  if(state.tool !== 'text') return;
+  const rect = pageRoot.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const el = document.createElement('div');
+  el.className = 'textbox-container';
+  el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width='180px'; el.style.height='60px';
+  el.innerHTML = '<textarea>Enter text</textarea>';
+  pageRoot.appendChild(el);
+  makeElementDraggableResizable(el, state.pageNum);
+  // commit to annotations
+  updateTextboxesFromDOM(state.pageNum);
+  pushUndo({action:'add', page: state.pageNum, ann: {type:'textbox', x: x, y: y, w:180, h:60, text:'Enter text', border:'#3498db', bg:'#fff'}});
+});
+
+/* ---------- Shape & Highlight drawing (mouse drag) ---------- */
+let shapeStart = null;
+pageRoot.addEventListener('pointerdown', e => {
+  if(!(state.tool === 'shape' || state.tool === 'highlight')) return;
+  const rect = pageRoot.getBoundingClientRect();
+  shapeStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  pageRoot.setPointerCapture(e.pointerId);
+});
+pageRoot.addEventListener('pointermove', e => {
+  if(!shapeStart) return;
+  const rect = pageRoot.getBoundingClientRect();
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  // render preview on drawCanvas (clear first)
+  clearCanvas(drawCtx);
+  drawCtx.save();
+  drawCtx.strokeStyle = state.draw.color;
+  drawCtx.lineWidth = Number(state.draw.width) || 2;
+  if(state.tool === 'shape'){
+    // rectangle preview
+    const w = cx - shapeStart.x, h = cy - shapeStart.y;
+    drawCtx.strokeRect(shapeStart.x, shapeStart.y, w, h);
+  } else if(state.tool === 'highlight'){
+    drawCtx.fillStyle = hexToRgba(state.draw.color, 0.3);
+    drawCtx.fillRect(shapeStart.x, shapeStart.y, cx - shapeStart.x, cy - shapeStart.y);
+  }
+  drawCtx.restore();
+});
+pageRoot.addEventListener('pointerup', e => {
+  if(!shapeStart) return;
+  const rect = pageRoot.getBoundingClientRect();
+  const ex = e.clientX - rect.left, ey = e.clientY - rect.top;
+  const x = shapeStart.x, y = shapeStart.y, w = ex - x, h = ey - y;
+  if(state.tool === 'shape'){
+    const ann = { type:'shape', shapeType:'rect', x, y, w, h, stroke: state.draw.color, fill:'rgba(0,0,0,0)', strokeWidth: Number(state.draw.width)||2 };
+    ensurePageAnnotations(state.pageNum).push(ann);
+    pushUndo({action:'add', page: state.pageNum, ann});
+  } else if(state.tool === 'highlight'){
+    const ann = { type:'highlight', x, y, w, h, color: hexToRgba(state.draw.color, 0.35) };
+    ensurePageAnnotations(state.pageNum).push(ann);
+    pushUndo({action:'add', page: state.pageNum, ann});
+  }
+  shapeStart = null;
+  clearCanvas(drawCtx);
+  drawAllAnnotationsForPage(state.pageNum);
+});
+
+/* ---------- Helpers ---------- */
+function hexToRgba(hex, alpha){
+  const c = hex.replace('#','');
+  const bigint = parseInt(c,16);
+  const r = (bigint>>16)&255, g=(bigint>>8)&255, b=bigint&255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* ---------- Undo / Redo ---------- */
+function pushUndo(item){
+  state.undoStack.push(item);
+  if(state.undoStack.length>100) state.undoStack.shift();
+  updateUndoRedoButtons();
+}
+function updateUndoRedoButtons(){ undoBtn.disabled = state.undoStack.length===0; redoBtn.disabled = state.redoStack.length===0; }
+undoBtn.addEventListener('click', ()=> {
+  if(state.undoStack.length===0) return;
+  const item = state.undoStack.pop();
+  // handle basic actions: add => remove last matching, replaceTextbox => swap prev
+  if(item.action==='add'){
+    const arr = ensurePageAnnotations(item.page);
+    const idx = arr.lastIndexOf(item.ann);
+    if(idx>-1) arr.splice(idx,1);
+    else {
+      // try to remove by matching type and content if necessary
+      const found = arr.findIndex(a => JSON.stringify(a) === JSON.stringify(item.ann));
+      if(found>-1) arr.splice(found,1);
+    }
+  } else if(item.action==='replaceTextbox'){
+    state.annotations[item.page] = item.prev;
+  }
+  state.redoStack.push(item);
+  drawAllAnnotationsForPage(state.pageNum);
+  updateUndoRedoButtons();
+});
+redoBtn.addEventListener('click', ()=> {
+  if(state.redoStack.length===0) return;
+  const item = state.redoStack.pop();
+  if(item.action==='add'){ ensurePageAnnotations(item.page).push(item.ann); }
+  else if(item.action==='replaceTextbox'){ state.annotations[item.page] = item.next; }
+  state.undoStack.push(item);
+  drawAllAnnotationsForPage(state.pageNum);
+  updateUndoRedoButtons();
+});
+
+/* ---------- Export / Import Annotations JSON ---------- */
+exportJSON.addEventListener('click', ()=> {
+  const payload = {
+    meta:{ fileName: state.fileName, exportedAt: new Date().toISOString() },
+    annotations: state.annotations
+  };
+  const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (state.fileName.replace(/\.pdf$/i,'')||'annotations') + '_annotations.json'; a.click();
+});
+importJSON.addEventListener('click', ()=> importFile.click());
+importFile.addEventListener('change', e=> {
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      state.annotations = obj.annotations || {};
+      drawAllAnnotationsForPage(state.pageNum);
+      showToast('Annotations imported');
+    } catch(err){ showToast('Invalid JSON'); }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+});
+
+/* ---------- Page navigation & zoom ---------- */
+prevPage.addEventListener('click', async ()=> {
+  if(state.pageNum > 1){ state.pageNum--; await renderPage(); }
+});
+nextPage.addEventListener('click', async ()=> {
+  if(state.pageNum < state.pageCount){ state.pageNum++; await renderPage(); }
+});
+zoomIn.addEventListener('click', async ()=> { state.scale = Math.min(3, state.scale + 0.2); zoomReset.textContent = Math.round(state.scale*100)+'%'; await renderPage(); });
+zoomOut.addEventListener('click', async ()=> { state.scale = Math.max(0.4, state.scale - 0.2); zoomReset.textContent = Math.round(state.scale*100)+'%'; await renderPage(); });
+zoomReset.addEventListener('click', async ()=> { state.scale = 1.2; zoomReset.textContent = '100%'; await renderPage(); });
+
+/* ---------- Color / width controls ---------- */
+colorPick.addEventListener('input', e => state.draw.color = e.target.value);
+widthPick.addEventListener('input', e => state.draw.width = Number(e.target.value) || 1);
+
+/* ---------- Save (flatten) using pdf-lib ---------- */
+saveBtn.addEventListener('click', async ()=> {
+  if(!state.pdfBytes){ showToast('No PDF loaded'); return; }
+  showToast('Preparing PDF export — flattening annotations...');
+  try {
+    // load original pdf
+    const pdfDoc = await PDFLib.PDFDocument.load(state.pdfBytes);
+    // for each page, rasterize anno layer + textboxes (we'll draw DOM elements into an image)
+    for(let p=1; p<=state.pageCount; p++){
+      const page = pdfDoc.getPage(p-1);
+      // get page size in points
+      const { width: pageW, height: pageH } = page.getSize();
+      // create a canvas at CSS size of our viewer for this page
+      // render PDF page again into an offscreen canvas at 1:1 CSS pixels
+      const pdfPage = await state.pdfDoc.getPage(p);
+      const viewport = pdfPage.getViewport({scale: state.scale});
+      // We'll create a temp canvas matching viewport (CSS pixels)
+      const tmp = document.createElement('canvas');
+      tmp.width = Math.floor(viewport.width); tmp.height = Math.floor(viewport.height);
+      const tmpCtx = tmp.getContext('2d');
+      // draw the rendered PDF page onto tmp using PDF.js render (render to an offscreen canvas)
+      // Note: Using page.render to existing context requires a canvas with backing store scaled — instead, render to an offscreen canvas using getViewport(scale=1)
+      const renderTask = pdfPage.render({ canvasContext: tmpCtx, viewport: viewport });
+      await renderTask.promise;
+      // draw annotations for page onto tmp (merge anno and text DOM)
+      // draw raster annotations (we have dataURLs in state.annotations)
+      const anns = state.annotations[p] || [];
+      for(const ann of anns){
+        if(ann.type === 'drawing'){
+          const img = new Image();
+          await new Promise((res,rej) => { img.onload = res; img.onerror = rej; img.src = ann.img; });
+          tmpCtx.drawImage(img, 0, 0, tmp.width, tmp.height);
+        } else if(ann.type === 'textbox'){
+          // draw textbox background and text
+          tmpCtx.fillStyle = ann.bg || '#ffffff';
+          tmpCtx.fillRect(ann.x, ann.y, ann.w, ann.h);
+          tmpCtx.strokeStyle = ann.border || '#3498db';
+          tmpCtx.strokeRect(ann.x, ann.y, ann.w, ann.h);
+          tmpCtx.fillStyle = ann.color || '#000';
+          tmpCtx.font = '14px sans-serif';
+          // simple text wrapping
+          const lines = (ann.text || '').split('\n');
+          let tx = ann.x + 6, ty = ann.y + 18;
+          for(const line of lines){
+            tmpCtx.fillText(line, tx, ty);
+            ty += 18;
+          }
+        } else if(ann.type === 'shape'){
+          tmpCtx.save();
+          tmpCtx.lineWidth = ann.strokeWidth || 2;
+          tmpCtx.strokeStyle = ann.stroke || '#000';
+          tmpCtx.fillStyle = ann.fill || 'rgba(0,0,0,0)';
+          if(ann.shapeType === 'rect'){
+            tmpCtx.fillRect(ann.x, ann.y, ann.w, ann.h);
+            tmpCtx.strokeRect(ann.x, ann.y, ann.w, ann.h);
+          } else if(ann.shapeType === 'ellipse'){
+            tmpCtx.beginPath();
+            tmpCtx.ellipse(ann.x + ann.w/2, ann.y + ann.h/2, Math.abs(ann.w/2), Math.abs(ann.h/2), 0, 0, Math.PI*2);
+            tmpCtx.fill(); tmpCtx.stroke();
+          } else if(ann.shapeType === 'arrow'){
+            tmpCtx.beginPath();
+            tmpCtx.moveTo(ann.x, ann.y);
+            tmpCtx.lineTo(ann.x + ann.w, ann.y + ann.h);
+            tmpCtx.stroke();
+            tmpCtx.beginPath();
+            tmpCtx.moveTo(ann.x + ann.w, ann.y + ann.h);
+            tmpCtx.lineTo(ann.x + ann.w - 10, ann.y + ann.h - 6);
+            tmpCtx.lineTo(ann.x + ann.w - 6, ann.y + ann.h - 10);
+            tmpCtx.closePath(); tmpCtx.fill();
+          }
+          tmpCtx.restore();
+        } else if(ann.type === 'highlight'){
+          tmpCtx.fillStyle = ann.color || 'rgba(255,255,0,0.35)';
+          tmpCtx.fillRect(ann.x, ann.y, ann.w, ann.h);
         }
+      } // end for annotations
 
-        function renderPage(num) {
-            pageRendering = true;
-            pdfJSDoc.getPage(num).then(page => {
-                const viewport = page.getViewport({ scale });
-                const pdfCanvas = document.getElementById('pdf-canvas');
-                pdfCanvas.height = viewport.height;
-                pdfCanvas.width = viewport.width;
-                const renderContext = {
-                    canvasContext: pdfCanvas.getContext('2d'),
-                    viewport
-                };
-                page.render(renderContext).promise.then(() => {
-                    pageRendering = false;
-                    if (pageNumPending !== null) {
-                        renderPage(pageNumPending);
-                        pageNumPending = null;
-                    }
-                });
+      // Now embed tmp canvas image into pdf-lib page
+      const imgDataUrl = tmp.toDataURL('image/png');
+      const imgBytes = await fetch(imgDataUrl).then(r => r.arrayBuffer());
+      const img = await pdfDoc.embedPng(imgBytes);
+      // compute scale to fit PDF page sizes: our tmp canvas width/height correspond to viewport CSS pixels.
+      // Map tmp.width -> pageW points, tmp.height -> pageH points
+      const imgDims = img.scale(1);
+      const xScale = pageW / tmp.width;
+      const yScale = pageH / tmp.height;
+      // draw image to cover whole page
+      page.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
+    } // end page loop
 
-                // Initialize fabric canvas
-                if (!currentFabricCanvas) {
-                    currentFabricCanvas = new fabric.Canvas('fabric-canvas', {
-                        width: viewport.width,
-                        height: viewport.height
-                    });
-                    currentFabricCanvas.on('object:modified', saveHistory);
-                    currentFabricCanvas.on('object:added', saveHistory);
-                    currentFabricCanvas.on('object:removed', saveHistory);
-                    currentFabricCanvas.on('selection:created', updateControls);
-                    currentFabricCanvas.on('selection:updated', updateControls);
-                    currentFabricCanvas.on('selection:cleared', clearControls);
-                }
-                currentFabricCanvas.clear();
-                fabricCanvases[num].forEach(obj => {
-                    fabric.Object.fromObject(obj, (newObj) => {
-                        currentFabricCanvas.add(newObj);
-                    });
-                });
-                currentFabricCanvas.setDimensions({ width: viewport.width, height: viewport.height });
-                currentFabricCanvas.renderAll();
-            });
-        }
+    // finalize
+    const outBytes = await pdfDoc.save();
+    const blob = new Blob([outBytes], {type:'application/pdf'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = state.fileName; a.click();
+    showToast('PDF exported');
+  } catch(err){
+    console.error(err);
+    showToast('Export failed');
+  }
+});
 
-        function savePageEdits() {
-            fabricCanvases[pageNum] = currentFabricCanvas.getObjects().map(obj => obj.toObject());
-        }
+/* ---------- Print ---------- */
+printBtn.addEventListener('click', ()=> window.print());
 
-        function saveHistory() {
-            history = history.slice(0, historyIndex + 1);
-            history.push(JSON.stringify(currentFabricCanvas.toJSON()));
-            historyIndex = history.length - 1;
-        }
+/* ---------- Draw annotations initially (if any) ---------- */
+function drawAllAnnotationsForPageWrapper(){
+  drawAllAnnotationsForPage(state.pageNum);
+}
+window.addEventListener('resize', ()=> {
+  // re-render page to adapt sizes
+  if(state.pdfDoc) renderPage();
+});
 
-        undoBtn.onclick = () => {
-            if (historyIndex > 0) {
-                historyIndex--;
-                currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
-            }
-        };
+/* ---------- Page initialization: create default annotations holder ---------- */
+function initEmptyAnnotations(){ for(let i=1;i<=state.pageCount;i++) if(!state.annotations[i]) state.annotations[i]=[]; }
 
-        redoBtn.onclick = () => {
-            if (historyIndex < history.length - 1) {
-                historyIndex++;
-                currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
-            }
-        };
+/* ---------- Misc: update undo/redo initial ---------- */
+updateUndoRedoButtons();
 
-        // Tool button handlers
-        textBoxBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = false;
-            const text = new fabric.Textbox('Edit me', {
-                left: 50,
-                top: 50,
-                fontSize: parseInt(fontSizeTextbox.value),
-                fill: fontColorTextbox.value,
-                width: 150,
-                fontFamily: fontFamilyTextbox.value,
-                backgroundColor: boxBackground.value,
-                stroke: boxBorder.value,
-                strokeWidth: 1
-            });
-            currentFabricCanvas.add(text);
-            currentFabricCanvas.setActiveObject(text);
-            saveHistory();
-        };
+/* ---------- On load: minimal setup ---------- */
+// nothing more — waiting for user to upload
 
-        drawBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = true;
-            currentFabricCanvas.freeDrawingBrush.color = drawColor.value;
-            currentFabricCanvas.freeDrawingBrush.width = parseInt(lineWidth.value);
-            currentFabricCanvas.freeDrawingBrush.strokeDashArray = lineStyle.value === 'dashed' ? [5, 5] : null;
-        };
-
-        highlightBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = false;
-            const highlight = new fabric.Rect({
-                left: 50,
-                top: 50,
-                width: 100,
-                height: 50,
-                fill: highlightColor.value,
-                opacity: opacity.value / 100,
-                isHighlight: true
-            });
-            currentFabricCanvas.add(highlight);
-            saveHistory();
-        };
-
-        shapesBtn.onclick = () => {
-            currentFabricCanvas.isDrawingMode = false;
-            let shape;
-            const shapeType = selectShape.value;
-            if (shapeType === 'rectangle') {
-                shape = new fabric.Rect({
-                    left: 50,
-                    top: 50,
-                    width: 100,
-                    height: 50,
-                    fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
-                    stroke: shapeColor.value,
-                    strokeWidth: parseInt(borderWidth.value),
-                    opacity: fillStyle.value === 'transparent' ? 0.5 : 1
-                });
-            } else if (shapeType === 'circle') {
-                shape = new fabric.Circle({
-                    left: 50,
-                    top: 50,
-                    radius: 50,
-                    fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
-                    stroke: shapeColor.value,
-                    strokeWidth: parseInt(borderWidth.value),
-                    opacity: fillStyle.value === 'transparent' ? 0.5 : 1
-                });
-            } else if (shapeType === 'arrow') {
-                shape = new fabric.Path('M 0 0 L 100 0 M 90 10 L 100 0 L 90 -10', {
-                    left: 50,
-                    top: 50,
-                    stroke: shapeColor.value,
-                    strokeWidth: parseInt(borderWidth.value),
-                    fill: 'none'
-                });
-            }
-            currentFabricCanvas.add(shape);
-            saveHistory();
-        };
-
-        // Font and text controls
-        fontFamily.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontFamily', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        fontSize.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontSize', parseInt(e.target.value));
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        fontColor.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fill', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        boldBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        italicBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        underlineBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('underline', !active.underline);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignLeftBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'left');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignCenterBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'center');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignRightBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'right');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        // Textbox controls
-        fontFamilyTextbox.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontFamily', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        fontSizeTextbox.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontSize', parseInt(e.target.value));
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        fontColorTextbox.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fill', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        boldTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        italicTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        underlineTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('underline', !active.underline);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignLeftTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'left');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignCenterTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'center');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        alignRightTextboxBtn.onclick = () => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('textAlign', 'right');
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        boxBackground.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('backgroundColor', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        boxBorder.onchange = (e) => {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                active.set('stroke', e.target.value);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        opacity.oninput = (e) => {
-            opacityValue.textContent = `${e.target.value}%`;
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.isHighlight) {
-                active.set('opacity', e.target.value / 100);
-                currentFabricCanvas.renderAll();
-                saveHistory();
-            }
-        };
-
-        // Update controls when object selected
-        function updateControls() {
-            const active = currentFabricCanvas.getActiveObject();
-            if (active && active.type === 'textbox') {
-                fontFamily.value = active.fontFamily || 'Arial';
-                fontSize.value = active.fontSize || 12;
-                fontColor.value = active.fill || '#000000';
-                fontFamilyTextbox.value = active.fontFamily || 'Arial';
-                fontSizeTextbox.value = active.fontSize || 12;
-                fontColorTextbox.value = active.fill || '#000000';
-                boxBackground.value = active.backgroundColor || '#ffffff';
-                boxBorder.value = active.stroke || '#000000';
-                boldBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
-                italicBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
-                underlineBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
-                alignLeftBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
-                alignCenterBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
-                alignRightBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
-                boldTextboxBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
-                italicTextboxBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
-                underlineTextboxBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
-                alignLeftTextboxBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
-                alignCenterTextboxBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
-                alignRightTextboxBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
-            } else if (active && active.isHighlight) {
-                highlightColor.value = active.fill || '#ffff00';
-                opacity.value = (active.opacity * 100) || 70;
-                opacityValue.textContent = `${opacity.value}%`;
-            }
-        }
-
-        function clearControls() {
-            fontFamily.value = 'Arial';
-            fontSize.value = 12;
-            fontColor.value = '#000000';
-            fontFamilyTextbox.value = 'Arial';
-            fontSizeTextbox.value = 12;
-            fontColorTextbox.value = '#000000';
-            boxBackground.value = '#ffffff';
-            boxBorder.value = '#000000';
-            boldBtn.style.backgroundColor = '#007bff';
-            italicBtn.style.backgroundColor = '#007bff';
-            underlineBtn.style.backgroundColor = '#007bff';
-            alignLeftBtn.style.backgroundColor = '#007bff';
-            alignCenterBtn.style.backgroundColor = '#007bff';
-            alignRightBtn.style.backgroundColor = '#007bff';
-            boldTextboxBtn.style.backgroundColor = '#007bff';
-            italicTextboxBtn.style.backgroundColor = '#007bff';
-            underlineTextboxBtn.style.backgroundColor = '#007bff';
-            alignLeftTextboxBtn.style.backgroundColor = '#007bff';
-            alignCenterTextboxBtn.style.backgroundColor = '#007bff';
-            alignRightTextboxBtn.style.backgroundColor = '#007bff';
-            highlightColor.value = '#ffff00';
-            opacity.value = 70;
-            opacityValue.textContent = '70%';
-        }
-
-        // Page navigation
-        previousBtn.onclick = () => {
-            if (pageNum <= 1) return;
-            savePageEdits();
-            pageNum--;
-            pageNumDisplay.textContent = pageNum;
-            renderPage(pageNum);
-        };
-
-        nextBtn.onclick = () => {
-            if (pageNum >= pageCount) return;
-            savePageEdits();
-            pageNum++;
-            pageNumDisplay.textContent = pageNum;
-            renderPage(pageNum);
-        };
-
-        // Zoom
-        zoom.onchange = (e) => {
-            scale = parseFloat(e.target.value) / 100;
-            renderPage(pageNum);
-        };
-
-        // Save PDF
-        saveBtn.onclick = async () => {
-            savePageEdits();
-            const editedPdf = await PDFLib.PDFDocument.load(originalPdfBytes);
-            for (let p = 1; p <= pageCount; p++) {
-                const page = editedPdf.getPage(p - 1);
-                const { width, height } = page.getSize();
-                const objects = fabricCanvases[p];
-                for (let obj of objects) {
-                    const rgb = obj.fill ? new fabric.Color(obj.fill).getSource() : [0, 0, 0, 1];
-                    const color = PDFLib.rgb(rgb[0]/255, rgb[1]/255, rgb[2]/255);
-                    if (obj.type === 'textbox') {
-                        const font = await editedPdf.embedFont(PDFLib.StandardFonts.Helvetica);
-                        page.drawText(obj.text, {
-                            x: obj.left * (width / obj.canvas.width),
-                            y: height - (obj.top + obj.height) * (height / obj.canvas.height),
-                            size: obj.fontSize * scale,
-                            font,
-                            color,
-                            opacity: obj.opacity || 1
-                        });
-                    } else if (obj.type === 'rect') {
-                        page.drawRectangle({
-                            x: obj.left * (width / obj.canvas.width),
-                            y: height - (obj.top + obj.height) * (height / obj.canvas.height),
-                            width: obj.width * scale,
-                            height: obj.height * scale,
-                            color,
-                            opacity: obj.opacity,
-                            borderWidth: obj.strokeWidth * scale,
-                            borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
-                        });
-                    } else if (obj.type === 'circle') {
-                        page.drawCircle({
-                            x: (obj.left + obj.radius) * (width / obj.canvas.width),
-                            y: height - (obj.top + obj.radius) * (height / obj.canvas.height),
-                            size: obj.radius * scale,
-                            color,
-                            opacity: obj.opacity,
-                            borderWidth: obj.strokeWidth * scale,
-                            borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
-                        });
-                    } else if (obj.type === 'path') {
-                        // Approximate paths as lines (simplified)
-                        page.drawLine({
-                            start: { x: obj.path[0][1] * (width / obj.canvas.width), y: height - obj.path[0][2] * (height / obj.canvas.height) },
-                            end: { x: obj.path[obj.path.length-1][1] * (width / obj.canvas.width), y: height - obj.path[obj.path.length-1][2] * (height / obj.canvas.height) },
-                            thickness: obj.strokeWidth * scale,
-                            color,
-                            opacity: obj.opacity
-                        });
-                    }
-                }
-            }
-            const editedBytes = await editedPdf.save();
-            download(editedBytes, 'edited.pdf', 'application/pdf');
-        };
-
-        // Print
-        printBtn.onclick = () => {
-            window.print();
-        };
-
-        // Disable text button (placeholder in original UI)
-        textBtn.onclick = () => {
-            alert('Text tool is not implemented in this version.');
-        };
-    </script>
+</script>
 </body>
 </html>

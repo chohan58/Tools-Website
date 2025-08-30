@@ -1,194 +1,912 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PDF Editor Plugin — Full Fixed Version</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
-    body{background:linear-gradient(135deg,#6a11cb 0%,#2575fc 100%);color:#333;min-height:100vh;padding:20px;}
-    .container{max-width:1200px;margin:auto;}
-
-    .home-page{text-align:center;color:#fff;margin-bottom:18px;}
-    .edit-pdf-btn{margin-top:8px;background:#3498db;color:#fff;border:none;padding:12px 18px;border-radius:10px;cursor:pointer;}
-
-    .upload-page{background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:24px;display:none;}
-    .upload-area{border:2px dashed #aaa;border-radius:12px;padding:28px;text-align:center;cursor:pointer;}
-    .upload-area:hover{border-color:#3498db;}
-    .file-input{display:none;}
-
-    .editor-container{background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);margin-top:20px;display:none;}
-    .toolbar{background:#2c3e50;color:#fff;padding:12px;display:flex;gap:12px;flex-wrap:wrap;}
-    .toolbar button{background:#3498db;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;}
-    .toolbar button:hover{background:#2980b9;}
-    .tool-active{outline:2px solid #7ec8ff;}
-
-    .pdf-viewer-container{position:relative;height:70vh;overflow:auto;background:#f0f3f5;display:flex;justify-content:center;padding:30px;}
-    #pdf-canvas{background:#fff;box-shadow:0 5px 15px rgba(0,0,0,.1);margin:auto;}
-    #drawing-canvas{position:absolute;top:30px;left:0;pointer-events:auto;}
-
-    .textbox-container{position:absolute;border:1px solid #3498db;border-radius:6px;background:#fff;padding:4px;z-index:10;}
-    .textbox-content{width:100%;height:100%;border:none;outline:none;resize:none;background:transparent;}
-
-    .status-bar{background:#ecf0f1;padding:10px 14px;display:flex;justify-content:space-between;border-top:1px solid #ccc;}
-  </style>
+    <meta charset="UTF-8">
+    <title>PDF Editor</title>
+    <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script src="https://unpkg.com/downloadjs@1.4.7"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+        }
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        .header h2 {
+            font-size: 1.2em;
+            color: #555;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            background-color: #f9f9f9;
+        }
+        .social-share, .back-home {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .social-share a, .back-home a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .article {
+            margin: 20px 0;
+        }
+        .article h2 {
+            font-size: 1.5em;
+        }
+        .article p {
+            margin: 10px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        #preview {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ccc;
+            margin: 20px 0;
+        }
+        #pdf-canvas {
+            display: block;
+        }
+        #fabric-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .tool-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .tool-options h3 {
+            width: 100%;
+            font-size: 1.2em;
+        }
+        .tool-buttons, .font-controls, .text-controls, .draw-controls, .highlight-controls, .shape-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        select, input[type="color"], input[type="range"] {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .page-controls {
+            text-align: center;
+            margin: 10px 0;
+        }
+        .pdf-preview p {
+            margin: 10px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #555;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Home -->
-    <div id="home-page" class="home-page">
-      <h1>PDF Editor Plugin</h1>
-      <p>Advanced text box tools for your PDF editor</p>
-      <button id="edit-pdf-btn" class="edit-pdf-btn"><i class="fas fa-edit"></i> EDIT PDF</button>
-    </div>
-
-    <!-- Upload -->
-    <div id="upload-page" class="upload-page">
-      <h2>Upload Your PDF</h2>
-      <div class="upload-area" id="upload-area">
-        <i class="fas fa-file-upload"></i>
-        <p>Click or Drag & Drop a PDF file</p>
-        <input type="file" id="file-input" class="file-input" accept="application/pdf" />
-      </div>
-      <button id="back-btn" class="edit-pdf-btn" style="background:#95a5a6;"><i class="fas fa-arrow-left"></i> Back</button>
-    </div>
-
-    <!-- Editor -->
-    <div class="editor-container" id="editor-container">
-      <div class="toolbar">
-        <button id="save-pdf"><i class="fas fa-save"></i> Save</button>
-        <button id="print-pdf"><i class="fas fa-print"></i> Print</button>
-        <button id="textbox-tool" class="tool-active"><i class="fas fa-square"></i> Text Box</button>
-        <button id="draw-tool"><i class="fas fa-pen"></i> Draw</button>
-        <button id="zoom-out"><i class="fas fa-search-minus"></i></button>
-        <button id="zoom-reset">100%</button>
-        <button id="zoom-in"><i class="fas fa-search-plus"></i></button>
-      </div>
-
-      <div class="pdf-viewer-container" id="pdf-container">
-        <canvas id="pdf-canvas"></canvas>
-        <canvas id="drawing-canvas"></canvas>
-      </div>
-
-      <div class="status-bar">
-        <div>Page: <span id="page-num">1</span>/<span id="page-count">1</span></div>
-        <div>
-          <button id="prev-page"><i class="fas fa-chevron-left"></i> Prev</button>
-          <button id="next-page">Next <i class="fas fa-chevron-right"></i></button>
+    <div class="container">
+        <div class="header">
+            <h1>PDF Editor Plugin</h1>
+            <h2>Advanced text box tools for your PDF editor</h2>
+            <button class="btn">EDIT PDF</button>
         </div>
-      </div>
+
+        <div class="upload-area">
+            <h3>Upload Your PDF</h3>
+            <p>Select a PDF file to start editing</p>
+            <div class="drag-drop">
+                <p>Drag & Drop your PDF here</p>
+                <p>or click to browse files</p>
+            </div>
+            <input type="file" id="file-input" accept=".pdf" style="display: none;">
+        </div>
+
+        <div class="social-share">
+            <a href="#">Sharing is Caring</a>
+        </div>
+        <div class="back-home">
+            <a href="#">Back to Home</a>
+        </div>
+
+        <div class="article">
+            <h2>The Ultimate Guide to PDF Editing: Unlock the Power of Free Tools</h2>
+            <p>In today's digital world, the ability to <strong>Edit PDF Free</strong> has become an essential skill for professionals, students, and everyday users alike. Portable Document Format (PDF) files are ubiquitous in our daily workflows, from business contracts and academic papers to personal documents and forms. The need to modify these documents without expensive software has led to the rise of powerful online tools that allow anyone to <strong>Edit PDF Free</strong> with ease.</p>
+            <p>The journey to find the perfect solution to <strong>Edit PDF Free</strong> begins with understanding what makes these tools so valuable. Unlike proprietary software that requires expensive licenses and complex installations, free PDF editors offer accessibility and convenience. With just an internet connection, users can upload their documents, make necessary changes, and download the revised files without spending a dime. This democratization of document editing has revolutionized how we handle digital paperwork.</p>
+            <p>When looking to <strong>Edit PDF Free</strong>, users will discover a wide range of features typically available. These include text editing capabilities that allow you to modify existing content, add new text, change fonts, and adjust formatting. Advanced tools even provide options for adding images, shapes, and annotations to make your documents more informative and visually appealing. The ability to highlight important sections, add comments, and draw attention to specific content makes these tools invaluable for collaborative work.</p>
+            <p>One of the most significant advantages when you <strong>Edit PDF Free</strong> is the elimination of software compatibility issues. Traditional desktop applications often require specific operating systems or hardware configurations, but web-based PDF editors work across platforms. Whether you're using Windows, macOS, Chrome OS, or even mobile devices, you can access these tools through your web browser without worrying about system requirements.</p>
+            <p>Security concerns are paramount when dealing with sensitive documents, and reputable free PDF editors address these issues with robust encryption and privacy policies. When you <strong>Edit PDF Free</strong> using trusted platforms, your documents are typically processed securely with SSL encryption, and many services automatically delete your files from their servers after a short period. This ensures that your confidential information remains protected throughout the editing process.</p>
+            <p>The user experience when you <strong>Edit PDF Free</strong> has improved dramatically in recent years. Modern interfaces are intuitive and user-friendly, with drag-and-drop functionality, clear toolbars, and contextual menus. Even those with limited technical expertise can quickly learn to navigate these platforms and perform complex editing tasks. Tutorials and help sections are often available to guide users through more advanced features.</p>
+            <p>Beyond basic editing, many free PDF tools offer additional functionality that enhances productivity. Features like document merging, splitting, compression, and conversion to other formats (such as Word, Excel, or PowerPoint) provide comprehensive document management solutions. This means you can handle all your PDF-related tasks in one place without switching between different applications.</p>
+            <p>For students, the ability to <strong>Edit PDF Free</strong> is particularly valuable. Academic materials are frequently distributed as PDFs, and being able to annotate lecture notes, highlight textbook passages, and add comments to research papers significantly enhances the learning experience. Group projects become more manageable when multiple students can collaborate on the same document with editing tools designed for teamwork.</p>
+            <p>In professional settings, the convenience to <strong>Edit PDF Free</strong> streamlines workflows and reduces operational costs. Businesses can avoid expensive software subscriptions while still maintaining the ability to modify contracts, update reports, and customize presentations. The time saved by quickly making changes to documents rather than recreating them from scratch translates to increased efficiency and productivity.</p>
+            <p>As technology continues to evolve, we uts HTML document from the user:
+            <p>When selecting a platform to <strong>Edit PDF Free</strong>, it's important to consider factors beyond just the cost. Look for tools with a clean interface, responsive customer support, and regular updates. Reading reviews and testing different options can help you find the solution that best fits your specific needs and workflow preferences.</p>
+            <p>In conclusion, the power to <strong>Edit PDF Free</strong> has transformed how we interact with digital documents. These tools have broken down barriers to access, allowing everyone from individuals to large organizations to manipulate PDF files without financial constraints. As these platforms continue to improve and offer more sophisticated features, they will undoubtedly remain essential components of our digital toolkit for years to come.</p>
+        </div>
+
+        <div class="tool-options">
+            <h3>Tools</h3>
+            <div class="tool-buttons">
+                <button class="btn" id="save">Save</button>
+                <button class="btn" id="print">Print</button>
+                <button class="btn" id="text">Text</button>
+                <button class="btn" id="text-box">Text Box</button>
+                <button class="btn" id="draw">Draw</button>
+                <button class="btn" id="highlight">Highlight</button>
+                <button class="btn" id="shapes">Shapes</button>
+                <button class="btn" id="undo">Undo</button>
+                <button class="btn" id="redo">Redo</button>
+            </div>
+            <div class="font-controls">
+                <select id="font-family">
+                    <option value="Arial">Arial</option>
+                    <option value="Helvetica">Helvetica</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Palatino">Palatino</option>
+                    <option value="Garamond">Garamond</option>
+                    <option value="Comic Sans MS">Comic Sans MS</option>
+                    <option value="Impact">Impact</option>
+                    <option value="Tahoma">Tahoma</option>
+                    <option value="Trebuchet MS">Trebuchet MS</option>
+                </select>
+                <select id="font-size">
+                    <option value="8">8px</option>
+                    <option value="10">10px</option>
+                    <option value="12">12px</option>
+                    <option value="14">14px</option>
+                    <option value="16">16px</option>
+                    <option value="18">18px</option>
+                    <option value="20">20px</option>
+                    <option value="24">24px</option>
+                    <option value="28">28px</option>
+                    <option value="32">32px</option>
+                    <option value="36">36px</option>
+                    <option value="40">40px</option>
+                </select>
+                <input type="color" id="font-color" value="#000000">
+                <button class="btn" id="bold">Bold</button>
+                <button class="btn" id="italic">Italic</button>
+                <button class="btn" id="underline">Underline</button>
+                <button class="btn" id="align-left">Align Left</button>
+                <button class="btn" id="align-center">Align Center</button>
+                <button class="btn" id="align-right">Align Right</button>
+                <button class="btn" id="valign-top">Top</button>
+                <button class="btn" id="valign-middle">Middle</button>
+                <button class="btn" id="valign-bottom">Bottom</button>
+            </div>
+            <div class="text-controls">
+                <select id="font-family-textbox">
+                    <option value="Arial">Arial</option>
+                    <option value="Helvetica">Helvetica</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Palatino">Palatino</option>
+                    <option value="Garamond">Garamond</option>
+                    <option value="Comic Sans MS">Comic Sans MS</option>
+                    <option value="Impact">Impact</option>
+                    <option value="Tahoma">Tahoma</option>
+                    <option value="Trebuchet MS">Trebuchet MS</option>
+                </select>
+                <select id="font-size-textbox">
+                    <option value="8">8px</option>
+                    <option value="10">10px</option>
+                    <option value="12">12px</option>
+                    <option value="14">14px</option>
+                    <option value="16">16px</option>
+                    <option value="18">18px</option>
+                    <option value="20">20px</option>
+                    <option value="24">24px</option>
+                    <option value="28">28px</option>
+                    <option value="32">32px</option>
+                    <option value="36">36px</option>
+                    <option value="40">40px</option>
+                </select>
+                <input type="color" id="font-color-textbox" value="#000000">
+                <button class="btn" id="bold-textbox">Bold</button>
+                <button class="btn" id="italic-textbox">Italic</button>
+                <button class="btn" id="underline-textbox">Underline</button>
+                <button class="btn" id="align-left-textbox">Align Left</button>
+                <button class="btn" id="align-center-textbox">Align Center</button>
+                <button class="btn" id="align-right-textbox">Align Right</button>
+                <button class="btn" id="valign-top-textbox">Top</button>
+                <button class="btn" id="valign-middle-textbox">Middle</button>
+                <button class="btn" id="valign-bottom-textbox">Bottom</button>
+                <input type="color" id="box-background" value="#ffffff">
+                <input type="color" id="box-border" value="#000000">
+            </div>
+            <div class="draw-controls">
+                <input type="color" id="draw-color" value="#000000">
+                <select id="line-width">
+                    <option value="1">1px</option>
+                    <option value="2">2px</option>
+                    <option value="3">3px</option>
+                    <option value="5">5px</option>
+                    <option value="10">10px</option>
+                </select>
+                <select id="line-style">
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                </select>
+            </div>
+            <div class="highlight-controls">
+                <input type="color" id="highlight-color" value="#ffff00">
+                <div class="quick-colors">
+                    <button class="btn" style="background-color: #ffff00;" onclick="document.getElementById('highlight-color').value='#ffff00'"></button>
+                    <button class="btn" style="background-color: #ff0000;" onclick="document.getElementById('highlight-color').value='#ff0000'"></button>
+                    <button class="btn" style="background-color: #00ff00;" onclick="document.getElementById('highlight-color').value='#00ff00'"></button>
+                    <button class="btn" style="background-color: #0000ff;" onclick="document.getElementById('highlight-color').value='#0000ff'"></button>
+                </div>
+                <input type="range" id="opacity" min="0" max="100" value="70">
+                <label>Opacity: <span id="opacity-value">70%</span></label>
+            </div>
+            <div class="shape-controls">
+                <input type="color" id="shape-color" value="#000000">
+                <select id="border-width">
+                    <option value="1">1px</option>
+                    <option value="2">2px</option>
+                    <option value="3">3px</option>
+                    <option value="5">5px</option>
+                </select>
+                <select id="fill-style">
+                    <option value="solid">Solid Fill</option>
+                    <option value="gradient">Gradient</option>
+                    <option value="transparent">Transparent</option>
+                </select>
+                <select id="select-shape">
+                    <option value="rectangle">Rectangle</option>
+                    <option value="circle">Circle</option>
+                    <option value="arrow">Arrow</option>
+                </select>
+            </div>
+            <div class="zoom-controls">
+                <select id="zoom">
+                    <option value="100">100%</option>
+                    <option value="50">50%</option>
+                    <option value="75">75%</option>
+                    <option value="125">125%</option>
+                    <option value="150">150%</option>
+                    <option value="200">200%</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="pdf-preview" id="preview">
+            <h3>PDF Document Preview</h3>
+            <p>Open a PDF file or create a new document to start editing</p>
+            <p>This is a sample text. Use the text box tool to add customizable text boxes.</p>
+            <canvas id="pdf-canvas"></canvas>
+            <canvas id="fabric-canvas"></canvas>
+        </div>
+
+        <div class="page-controls">
+            <span>Page: <span id="page-num">1</span> / <span id="page-count">1</span></span>
+            <button class="btn" id="previous">Previous</button>
+            <button class="btn" id="next">Next</button>
+        </div>
+
+        <div class="footer">
+            PDF Editor Plugin © 2023 - Advanced Text Box Tools
+        </div>
     </div>
-  </div>
 
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
+    <script>
+        // Global variables
+        let pdfJSDoc = null;
+        let pdfLibDoc = null;
+        let pageNum = 1;
+        let pageCount = 0;
+        let scale = 1.0;
+        let pageRendering = false;
+        let pageNumPending = null;
+        let originalPdfBytes = null;
+        let fabricCanvases = [];
+        let currentFabricCanvas = null;
+        let history = [];
+        let historyIndex = -1;
 
-    const state={pdfDoc:null,pageNum:1,pageCount:1,zoom:1.2,tool:'textbox',drawing:false,lastX:0,lastY:0,textboxCounter:0};
+        // Select elements
+        const uploadArea = document.querySelector('.upload-area');
+        const fileInput = document.getElementById('file-input');
+        const saveBtn = document.getElementById('save');
+        const printBtn = document.getElementById('print');
+        const textBtn = document.getElementById('text');
+        const textBoxBtn = document.getElementById('text-box');
+        const drawBtn = document.getElementById('draw');
+        const highlightBtn = document.getElementById('highlight');
+        const shapesBtn = document.getElementById('shapes');
+        const undoBtn = document.getElementById('undo');
+        const redoBtn = document.getElementById('redo');
+        const fontFamily = document.getElementById('font-family');
+        const fontSize = document.getElementById('font-size');
+        const fontColor = document.getElementById('font-color');
+        const boldBtn = document.getElementById('bold');
+        const italicBtn = document.getElementById('italic');
+        const underlineBtn = document.getElementById('underline');
+        const alignLeftBtn = document.getElementById('align-left');
+        const alignCenterBtn = document.getElementById('align-center');
+        const alignRightBtn = document.getElementById('align-right');
+        const valignTopBtn = document.getElementById('valign-top');
+        const valignMiddleBtn = document.getElementById('valign-middle');
+        const valignBottomBtn = document.getElementById('valign-bottom');
+        const fontFamilyTextbox = document.getElementById('font-family-textbox');
+        const fontSizeTextbox = document.getElementById('font-size-textbox');
+        const fontColorTextbox = document.getElementById('font-color-textbox');
+        const boldTextboxBtn = document.getElementById('bold-textbox');
+        const italicTextboxBtn = document.getElementById('italic-textbox');
+        const underlineTextboxBtn = document.getElementById('underline-textbox');
+        const alignLeftTextboxBtn = document.getElementById('align-left-textbox');
+        const alignCenterTextboxBtn = document.getElementById('align-center-textbox');
+        const alignRightTextboxBtn = document.getElementById('align-right-textbox');
+        const valignTopTextboxBtn = document.getElementById('valign-top-textbox');
+        const valignMiddleTextboxBtn = document.getElementById('valign-middle-textbox');
+        const valignBottomTextboxBtn = document.getElementById('valign-bottom-textbox');
+        const boxBackground = document.getElementById('box-background');
+        const boxBorder = document.getElementById('box-border');
+        const drawColor = document.getElementById('draw-color');
+        const lineWidth = document.getElementById('line-width');
+        const lineStyle = document.getElementById('line-style');
+        const highlightColor = document.getElementById('highlight-color');
+        const opacity = document.getElementById('opacity');
+        const opacityValue = document.getElementById('opacity-value');
+        const shapeColor = document.getElementById('shape-color');
+        const borderWidth = document.getElementById('border-width');
+        const fillStyle = document.getElementById('fill-style');
+        const selectShape = document.getElementById('select-shape');
+        const zoom = document.getElementById('zoom');
+        const pageNumDisplay = document.getElementById('page-num');
+        const pageCountDisplay = document.getElementById('page-count');
+        const previousBtn = document.getElementById('previous');
+        const nextBtn = document.getElementById('next');
+        const preview = document.getElementById('preview');
 
-    const fileInput=document.getElementById('file-input');
-    const uploadArea=document.getElementById('upload-area');
-    const homePage=document.getElementById('home-page');
-    const uploadPage=document.getElementById('upload-page');
-    const editor=document.getElementById('editor-container');
-    const canvas=document.getElementById('pdf-canvas');
-    const ctx=canvas.getContext('2d');
-    const drawCanvas=document.getElementById('drawing-canvas');
-    const drawCtx=drawCanvas.getContext('2d');
+        // Handle file upload
+        uploadArea.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+        uploadArea.ondragover = (e) => e.preventDefault();
+        uploadArea.ondrop = (e) => {
+            e.preventDefault();
+            handleFile(e.dataTransfer.files[0]);
+        };
 
-    // Navigation
-    document.getElementById('edit-pdf-btn').onclick=()=>{homePage.style.display='none';uploadPage.style.display='block';};
-    document.getElementById('back-btn').onclick=()=>{homePage.style.display='block';uploadPage.style.display='none';editor.style.display='none';};
+        async function handleFile(file) {
+            originalPdfBytes = await file.arrayBuffer();
+            pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
+            const url = URL.createObjectURL(file);
+            pdfJSDoc = await pdfjsLib.getDocument(url).promise;
+            pageCount = pdfJSDoc.numPages;
+            fabricCanvases = new Array(pageCount + 1).fill([]); // index 1 to pageCount
+            pageNumDisplay.textContent = pageNum;
+            pageCountDisplay.textContent = pageCount;
+            renderPage(pageNum);
+        }
 
-    // File picker
-    uploadArea.onclick=()=>fileInput.click();
-    fileInput.onchange=e=>loadPdf(e.target.files[0]);
+        function renderPage(num) {
+            pageRendering = true;
+            pdfJSDoc.getPage(num).then(page => {
+                const viewport = page.getViewport({ scale });
+                const pdfCanvas = document.getElementById('pdf-canvas');
+                pdfCanvas.height = viewport.height;
+                pdfCanvas.width = viewport.width;
+                const renderContext = {
+                    canvasContext: pdfCanvas.getContext('2d'),
+                    viewport
+                };
+                page.render(renderContext).promise.then(() => {
+                    pageRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
 
-    // Drag & drop
-    ['dragenter','dragover'].forEach(ev=>uploadArea.addEventListener(ev,e=>{e.preventDefault();uploadArea.style.borderColor='#3498db';}));
-    ['dragleave','drop'].forEach(ev=>uploadArea.addEventListener(ev,e=>{e.preventDefault();uploadArea.style.borderColor='#aaa';}));
-    uploadArea.addEventListener('drop',e=>{if(e.dataTransfer.files[0]) loadPdf(e.dataTransfer.files[0]);});
+                // Initialize fabric canvas
+                if (!currentFabricCanvas) {
+                    currentFabricCanvas = new fabric.Canvas('fabric-canvas', {
+                        width: viewport.width,
+                        height: viewport.height
+                    });
+                    currentFabricCanvas.on('object:modified', saveHistory);
+                    currentFabricCanvas.on('object:added', saveHistory);
+                    currentFabricCanvas.on('object:removed', saveHistory);
+                    currentFabricCanvas.on('selection:created', updateControls);
+                    currentFabricCanvas.on('selection:updated', updateControls);
+                    currentFabricCanvas.on('selection:cleared', clearControls);
+                }
+                currentFabricCanvas.clear();
+                fabricCanvases[num].forEach(obj => {
+                    fabric.Object.fromObject(obj, (newObj) => {
+                        currentFabricCanvas.add(newObj);
+                    });
+                });
+                currentFabricCanvas.setDimensions({ width: viewport.width, height: viewport.height });
+                currentFabricCanvas.renderAll();
+            });
+        }
 
-    async function loadPdf(file){
-      if(!file) return;
-      if(file.type!=='application/pdf'&&!file.name.endsWith('.pdf')){alert('Please upload a PDF');return;}
-      const url=URL.createObjectURL(file);
-      try{
-        state.pdfDoc=await pdfjsLib.getDocument({url}).promise;
-        state.pageCount=state.pdfDoc.numPages; state.pageNum=1;
-        document.getElementById('page-count').textContent=state.pageCount;
-        await renderPage();
-        uploadPage.style.display='none'; editor.style.display='block';
-      }catch(err){console.error(err);alert('Failed to load PDF');}
-    }
+        function savePageEdits() {
+            fabricCanvases[pageNum] = currentFabricCanvas.getObjects().map(obj => obj.toObject());
+        }
 
-    async function renderPage(){
-      const page=await state.pdfDoc.getPage(state.pageNum);
-      const viewport=page.getViewport({scale:state.zoom});
-      canvas.width=viewport.width; canvas.height=viewport.height;
-      drawCanvas.width=viewport.width; drawCanvas.height=viewport.height;
-      await page.render({canvasContext:ctx,viewport}).promise;
-      document.getElementById('page-num').textContent=state.pageNum;
-    }
+        function saveHistory() {
+            history = history.slice(0, historyIndex + 1);
+            history.push(JSON.stringify(currentFabricCanvas.toJSON()));
+            historyIndex = history.length - 1;
+        }
 
-    // Tools
-    document.getElementById('textbox-tool').onclick=()=>{state.tool='textbox';setActive('textbox-tool');};
-    document.getElementById('draw-tool').onclick=()=>{state.tool='draw';setActive('draw-tool');};
-    function setActive(id){document.querySelectorAll('.toolbar button').forEach(b=>b.classList.remove('tool-active'));document.getElementById(id).classList.add('tool-active');}
+        undoBtn.onclick = () => {
+            if (historyIndex > 0) {
+                historyIndex--;
+                currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
+            }
+        };
 
-    // Textbox creation
-    canvas.parentElement.addEventListener('dblclick',e=>{
-      if(state.tool!=='textbox') return;
-      const rect=canvas.getBoundingClientRect();
-      const box=document.createElement('div');
-      box.className='textbox-container';
-      box.style.left=(e.clientX-rect.left)+'px';
-      box.style.top=(e.clientY-rect.top)+'px';
-      box.style.width='150px'; box.style.height='50px';
-      const ta=document.createElement('textarea');
-      ta.className='textbox-content';
-      ta.value='Type...';
-      box.appendChild(ta);
-      document.getElementById('pdf-container').appendChild(box);
-      // Dragging
-      let drag=false,offX=0,offY=0;
-      box.addEventListener('mousedown',ev=>{drag=true;offX=ev.offsetX;offY=ev.offsetY;});
-      document.addEventListener('mousemove',ev=>{if(drag){box.style.left=(ev.clientX-rect.left-offX)+'px';box.style.top=(ev.clientY-rect.top-offY)+'px';}});
-      document.addEventListener('mouseup',()=>drag=false);
-    });
+        redoBtn.onclick = () => {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                currentFabricCanvas.loadFromJSON(history[historyIndex], currentFabricCanvas.renderAll.bind(currentFabricCanvas));
+            }
+        };
 
-    // Drawing
-    drawCanvas.addEventListener('mousedown',e=>{
-      if(state.tool!=='draw') return;
-      state.drawing=true;
-      const rect=drawCanvas.getBoundingClientRect();
-      state.lastX=e.clientX-rect.left; state.lastY=e.clientY-rect.top;
-    });
-    drawCanvas.addEventListener('mousemove',e=>{
-      if(!state.drawing) return;
-      const rect=drawCanvas.getBoundingClientRect();
-      const x=e.clientX-rect.left, y=e.clientY-rect.top;
-      drawCtx.beginPath();
-      drawCtx.moveTo(state.lastX,state.lastY);
-      drawCtx.lineTo(x,y);
-      drawCtx.strokeStyle='red'; drawCtx.lineWidth=2;
-      drawCtx.stroke();
-      state.lastX=x; state.lastY=y;
-    });
-    ['mouseup','mouseleave'].forEach(ev=>drawCanvas.addEventListener(ev,()=>state.drawing=false));
+        // Tool button handlers
+        textBoxBtn.onclick = () => {
+            currentFabricCanvas.isDrawingMode = false;
+            const text = new fabric.Textbox('Edit me', {
+                left: 50,
+                top: 50,
+                fontSize: parseInt(fontSizeTextbox.value),
+                fill: fontColorTextbox.value,
+                width: 150,
+                fontFamily: fontFamilyTextbox.value,
+                backgroundColor: boxBackground.value,
+                stroke: boxBorder.value,
+                strokeWidth: 1
+            });
+            currentFabricCanvas.add(text);
+            currentFabricCanvas.setActiveObject(text);
+            saveHistory();
+        };
 
-    // Zoom + pages
-    document.getElementById('zoom-in').onclick=()=>{state.zoom+=0.2;renderPage();document.getElementById('zoom-reset').textContent=Math.round(state.zoom*100)+'%';};
-    document.getElementById('zoom-out').onclick=()=>{if(state.zoom>0.4){state.zoom-=0.2;renderPage();document.getElementById('zoom-reset').textContent=Math.round(state.zoom*100)+'%';}};
-    document.getElementById('zoom-reset').onclick=()=>{state.zoom=1.2;renderPage();document.getElementById('zoom-reset').textContent='100%';};
-    document.getElementById('next-page').onclick=()=>{if(state.pageNum<state.pageCount){state.pageNum++;renderPage();}};
-    document.getElementById('prev-page').onclick=()=>{if(state.pageNum>1){state.pageNum--;renderPage();}};
+        drawBtn.onclick = () => {
+            currentFabricCanvas.isDrawingMode = true;
+            currentFabricCanvas.freeDrawingBrush.color = drawColor.value;
+            currentFabricCanvas.freeDrawingBrush.width = parseInt(lineWidth.value);
+            currentFabricCanvas.freeDrawingBrush.strokeDashArray = lineStyle.value === 'dashed' ? [5, 5] : null;
+        };
 
-    document.getElementById('print-pdf').onclick=()=>window.print();
-    document.getElementById('save-pdf').onclick=()=>alert('Export to PDF not implemented — use pdf-lib/jsPDF for real saving');
-  </script>
+        highlightBtn.onclick = () => {
+            currentFabricCanvas.isDrawingMode = false;
+            const highlight = new fabric.Rect({
+                left: 50,
+                top: 50,
+                width: 100,
+                height: 50,
+                fill: highlightColor.value,
+                opacity: opacity.value / 100,
+                isHighlight: true
+            });
+            currentFabricCanvas.add(highlight);
+            saveHistory();
+        };
+
+        shapesBtn.onclick = () => {
+            currentFabricCanvas.isDrawingMode = false;
+            let shape;
+            const shapeType = selectShape.value;
+            if (shapeType === 'rectangle') {
+                shape = new fabric.Rect({
+                    left: 50,
+                    top: 50,
+                    width: 100,
+                    height: 50,
+                    fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
+                    stroke: shapeColor.value,
+                    strokeWidth: parseInt(borderWidth.value),
+                    opacity: fillStyle.value === 'transparent' ? 0.5 : 1
+                });
+            } else if (shapeType === 'circle') {
+                shape = new fabric.Circle({
+                    left: 50,
+                    top: 50,
+                    radius: 50,
+                    fill: fillStyle.value === 'transparent' ? 'transparent' : shapeColor.value,
+                    stroke: shapeColor.value,
+                    strokeWidth: parseInt(borderWidth.value),
+                    opacity: fillStyle.value === 'transparent' ? 0.5 : 1
+                });
+            } else if (shapeType === 'arrow') {
+                shape = new fabric.Path('M 0 0 L 100 0 M 90 10 L 100 0 L 90 -10', {
+                    left: 50,
+                    top: 50,
+                    stroke: shapeColor.value,
+                    strokeWidth: parseInt(borderWidth.value),
+                    fill: 'none'
+                });
+            }
+            currentFabricCanvas.add(shape);
+            saveHistory();
+        };
+
+        // Font and text controls
+        fontFamily.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontFamily', e.target.value);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        fontSize.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontSize', parseInt(e.target.value));
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        fontColor.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fill', e.target.value);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        boldBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        italicBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        underlineBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('underline', !active.underline);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        alignLeftBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('textAlign', 'left');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        alignCenterBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('textAlign', 'center');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        alignRightBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('textAlign', 'right');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        // Textbox controls
+        fontFamilyTextbox.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontFamily', e.target.value);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        fontSizeTextbox.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontSize', parseInt(e.target.value));
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        fontColorTextbox.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fill', e.target.value);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        boldTextboxBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontWeight', active.fontWeight === 'bold' ? 'normal' : 'bold');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        italicTextboxBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('fontStyle', active.fontStyle === 'italic' ? 'normal' : 'italic');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        underlineTextboxBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('underline', !active.underline);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        alignLeftTextboxBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('textAlign', 'left');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        alignCenterTextboxBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('textAlign', 'center');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        alignRightTextboxBtn.onclick = () => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('textAlign', 'right');
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        boxBackground.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('backgroundColor', e.target.value);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        boxBorder.onchange = (e) => {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                active.set('stroke', e.target.value);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        opacity.oninput = (e) => {
+            opacityValue.textContent = `${e.target.value}%`;
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.isHighlight) {
+                active.set('opacity', e.target.value / 100);
+                currentFabricCanvas.renderAll();
+                saveHistory();
+            }
+        };
+
+        // Update controls when object selected
+        function updateControls() {
+            const active = currentFabricCanvas.getActiveObject();
+            if (active && active.type === 'textbox') {
+                fontFamily.value = active.fontFamily || 'Arial';
+                fontSize.value = active.fontSize || 12;
+                fontColor.value = active.fill || '#000000';
+                fontFamilyTextbox.value = active.fontFamily || 'Arial';
+                fontSizeTextbox.value = active.fontSize || 12;
+                fontColorTextbox.value = active.fill || '#000000';
+                boxBackground.value = active.backgroundColor || '#ffffff';
+                boxBorder.value = active.stroke || '#000000';
+                boldBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
+                italicBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
+                underlineBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
+                alignLeftBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
+                alignCenterBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
+                alignRightBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
+                boldTextboxBtn.style.backgroundColor = active.fontWeight === 'bold' ? '#0056b3' : '#007bff';
+                italicTextboxBtn.style.backgroundColor = active.fontStyle === 'italic' ? '#0056b3' : '#007bff';
+                underlineTextboxBtn.style.backgroundColor = active.underline ? '#0056b3' : '#007bff';
+                alignLeftTextboxBtn.style.backgroundColor = active.textAlign === 'left' ? '#0056b3' : '#007bff';
+                alignCenterTextboxBtn.style.backgroundColor = active.textAlign === 'center' ? '#0056b3' : '#007bff';
+                alignRightTextboxBtn.style.backgroundColor = active.textAlign === 'right' ? '#0056b3' : '#007bff';
+            } else if (active && active.isHighlight) {
+                highlightColor.value = active.fill || '#ffff00';
+                opacity.value = (active.opacity * 100) || 70;
+                opacityValue.textContent = `${opacity.value}%`;
+            }
+        }
+
+        function clearControls() {
+            fontFamily.value = 'Arial';
+            fontSize.value = 12;
+            fontColor.value = '#000000';
+            fontFamilyTextbox.value = 'Arial';
+            fontSizeTextbox.value = 12;
+            fontColorTextbox.value = '#000000';
+            boxBackground.value = '#ffffff';
+            boxBorder.value = '#000000';
+            boldBtn.style.backgroundColor = '#007bff';
+            italicBtn.style.backgroundColor = '#007bff';
+            underlineBtn.style.backgroundColor = '#007bff';
+            alignLeftBtn.style.backgroundColor = '#007bff';
+            alignCenterBtn.style.backgroundColor = '#007bff';
+            alignRightBtn.style.backgroundColor = '#007bff';
+            boldTextboxBtn.style.backgroundColor = '#007bff';
+            italicTextboxBtn.style.backgroundColor = '#007bff';
+            underlineTextboxBtn.style.backgroundColor = '#007bff';
+            alignLeftTextboxBtn.style.backgroundColor = '#007bff';
+            alignCenterTextboxBtn.style.backgroundColor = '#007bff';
+            alignRightTextboxBtn.style.backgroundColor = '#007bff';
+            highlightColor.value = '#ffff00';
+            opacity.value = 70;
+            opacityValue.textContent = '70%';
+        }
+
+        // Page navigation
+        previousBtn.onclick = () => {
+            if (pageNum <= 1) return;
+            savePageEdits();
+            pageNum--;
+            pageNumDisplay.textContent = pageNum;
+            renderPage(pageNum);
+        };
+
+        nextBtn.onclick = () => {
+            if (pageNum >= pageCount) return;
+            savePageEdits();
+            pageNum++;
+            pageNumDisplay.textContent = pageNum;
+            renderPage(pageNum);
+        };
+
+        // Zoom
+        zoom.onchange = (e) => {
+            scale = parseFloat(e.target.value) / 100;
+            renderPage(pageNum);
+        };
+
+        // Save PDF
+        saveBtn.onclick = async () => {
+            savePageEdits();
+            const editedPdf = await PDFLib.PDFDocument.load(originalPdfBytes);
+            for (let p = 1; p <= pageCount; p++) {
+                const page = editedPdf.getPage(p - 1);
+                const { width, height } = page.getSize();
+                const objects = fabricCanvases[p];
+                for (let obj of objects) {
+                    const rgb = obj.fill ? new fabric.Color(obj.fill).getSource() : [0, 0, 0, 1];
+                    const color = PDFLib.rgb(rgb[0]/255, rgb[1]/255, rgb[2]/255);
+                    if (obj.type === 'textbox') {
+                        const font = await editedPdf.embedFont(PDFLib.StandardFonts.Helvetica);
+                        page.drawText(obj.text, {
+                            x: obj.left * (width / obj.canvas.width),
+                            y: height - (obj.top + obj.height) * (height / obj.canvas.height),
+                            size: obj.fontSize * scale,
+                            font,
+                            color,
+                            opacity: obj.opacity || 1
+                        });
+                    } else if (obj.type === 'rect') {
+                        page.drawRectangle({
+                            x: obj.left * (width / obj.canvas.width),
+                            y: height - (obj.top + obj.height) * (height / obj.canvas.height),
+                            width: obj.width * scale,
+                            height: obj.height * scale,
+                            color,
+                            opacity: obj.opacity,
+                            borderWidth: obj.strokeWidth * scale,
+                            borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
+                        });
+                    } else if (obj.type === 'circle') {
+                        page.drawCircle({
+                            x: (obj.left + obj.radius) * (width / obj.canvas.width),
+                            y: height - (obj.top + obj.radius) * (height / obj.canvas.height),
+                            size: obj.radius * scale,
+                            color,
+                            opacity: obj.opacity,
+                            borderWidth: obj.strokeWidth * scale,
+                            borderColor: obj.stroke ? PDFLib.rgb(...new fabric.Color(obj.stroke).getSource().slice(0, 3).map(v => v/255)) : color
+                        });
+                    } else if (obj.type === 'path') {
+                        // Approximate paths as lines (simplified)
+                        page.drawLine({
+                            start: { x: obj.path[0][1] * (width / obj.canvas.width), y: height - obj.path[0][2] * (height / obj.canvas.height) },
+                            end: { x: obj.path[obj.path.length-1][1] * (width / obj.canvas.width), y: height - obj.path[obj.path.length-1][2] * (height / obj.canvas.height) },
+                            thickness: obj.strokeWidth * scale,
+                            color,
+                            opacity: obj.opacity
+                        });
+                    }
+                }
+            }
+            const editedBytes = await editedPdf.save();
+            download(editedBytes, 'edited.pdf', 'application/pdf');
+        };
+
+        // Print
+        printBtn.onclick = () => {
+            window.print();
+        };
+
+        // Disable text button (placeholder in original UI)
+        textBtn.onclick = () => {
+            alert('Text tool is not implemented in this version.');
+        };
+    </script>
 </body>
 </html>

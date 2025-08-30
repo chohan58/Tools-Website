@@ -6,7 +6,7 @@
   <title>PDF Editor Plugin — Fixed & Fully Functional</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <style>
-    /* ---------- Base / Existing Look & Feel (kept the same) ---------- */
+    /* ---------- Base / Existing Look & Feel (unchanged) ---------- */
     * { margin:0; padding:0; box-sizing:border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color:#333; min-height:100vh; padding:20px; display:flex; flex-direction:column; align-items:center; }
     .container { width:100%; max-width:1200px; margin:0 auto; }
@@ -33,32 +33,17 @@
     .toolbar select, .toolbar input { padding:8px; border-radius:6px; border:1px solid #ddd; background:#fff; }
     .tool-active { outline:2px solid #7ec8ff; }
 
-    /* Submenus (kept positions) */
-    .text-submenu, .textbox-submenu, .draw-submenu, .highlight-submenu, .shapes-submenu { display:none; position:absolute; top:100%; background:#fff; border-radius:8px; box-shadow:0 5px 15px rgba(0,0,0,.2); padding:15px; z-index:100; }
-    .text-submenu{ left:175px; width:420px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .textbox-submenu{ left:260px; width:520px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .draw-submenu{ left:435px; width:300px; display:grid; grid-template-columns:1fr; gap:12px; }
-    .highlight-submenu{ left:500px; width:280px; }
-    .shapes-submenu{ left:575px; width:400px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
-    .text-submenu.active, .textbox-submenu.active, .draw-submenu.active, .highlight-submenu.active, .shapes-submenu.active{ display:grid; }
-    .submenu-group h4{ margin-bottom:8px; color:#2c3e50; font-size:14px; border-bottom:1px solid #eee; padding-bottom:5px; }
-    .submenu-options{ display:flex; flex-wrap:wrap; gap:8px; }
-    .submenu-btn{ background:#f8f9fa; border:1px solid #ddd; border-radius:4px; padding:8px 10px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-    .submenu-btn.active{ background:#3498db; color:#fff; border-color:#2980b9; }
-
     .pdf-viewer-container { position:relative; height:70vh; overflow:auto; background:#f0f3f5; display:flex; justify-content:center; padding:30px; }
     .pdf-page { background:#fff; box-shadow:0 5px 15px rgba(0,0,0,.1); width:816px; position:relative; margin:0 auto; overflow:hidden; }
     .pdf-content { position:relative; }
     .page-mock { position:absolute; inset:40px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:#7f8c8d; }
 
-    /* Layered canvases: base PDF canvas + annotation + drawing */
     #pdf-render-canvas { display:block; margin:40px auto; background:#fff; }
     .annotation-canvas, .drawing-canvas { position:absolute; pointer-events:none; }
     .drawing-canvas { pointer-events:auto; }
 
     .status-bar { background:#ecf0f1; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid #e2e8f0; }
 
-    /* Article styles kept (trimmed) */
     .article-container { margin-top:16px; background:#fff; padding:18px; border-radius:10px; box-shadow:0 6px 14px rgba(0,0,0,.08); }
     .article-container h3{ color:#2c3e50; margin-bottom:10px; text-align:center; font-size:22px; border-bottom:2px solid #3498db; padding-bottom:8px; }
     .article-container p{ color:#7f8c8d; line-height:1.6; margin-bottom:12px; text-align:justify; }
@@ -87,14 +72,12 @@
       <button id="share-btn" class="share-btn"><i class="fas fa-share-alt"></i> Sharing is Caring</button>
       <button class="back-btn" id="back-btn"><i class="fas fa-arrow-left"></i> Back to Home</button>
 
-      <!-- (Article section preserved) -->
       <div class="article-container">
         <h3>The Ultimate Guide to PDF Editing</h3>
         <p>Use the tools above to upload and edit a PDF without changing the look & feel of your site.</p>
       </div>
     </div>
 
-    <!-- Editor Container -->
     <div class="editor-container" id="editor-container">
       <div class="toolbar">
         <div class="toolbar-group">
@@ -113,96 +96,18 @@
           <button id="redo"><i class="fas fa-redo"></i> Redo</button>
         </div>
         <div class="toolbar-group">
-          <button id="zoom-out" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
-          <button id="zoom-reset" title="Reset Zoom">100%</button>
-          <button id="zoom-in" title="Zoom In"><i class="fas fa-search-plus"></i></button>
+          <button id="zoom-out"><i class="fas fa-search-minus"></i></button>
+          <button id="zoom-reset">100%</button>
+          <button id="zoom-in"><i class="fas fa-search-plus"></i></button>
         </div>
-
-        <!-- Text submenu (preserved minimal) -->
-        <div class="text-submenu" id="text-submenu">
-          <div class="submenu-group">
-            <h4>Font Family</h4>
-            <select id="font-family">
-              <option value="Arial" style="font-family:Arial">Arial</option>
-              <option value="Helvetica" style="font-family:Helvetica">Helvetica</option>
-              <option value="Times New Roman" style="font-family:'Times New Roman'">Times New Roman</option>
-            </select>
-          </div>
-          <div class="submenu-group">
-            <h4>Font Size</h4>
-            <select id="font-size">
-              <option>12</option><option selected>16</option><option>18</option><option>24</option><option>32</option>
-            </select>
-          </div>
-          <div class="submenu-group">
-            <h4>Font Color</h4>
-            <input type="color" id="font-color" value="#000000" />
-          </div>
-          <div class="submenu-group">
-            <h4>Style</h4>
-            <div class="submenu-options">
-              <button class="submenu-btn" id="bold-btn" title="Bold"><i class="fas fa-bold"></i></button>
-              <button class="submenu-btn" id="italic-btn" title="Italic"><i class="fas fa-italic"></i></button>
-              <button class="submenu-btn" id="underline-btn" title="Underline"><i class="fas fa-underline"></i></button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Textbox submenu (preserved minimal) -->
-        <div class="textbox-submenu" id="textbox-submenu">
-          <div class="submenu-group">
-            <h4>Textbox Font</h4>
-            <select id="textbox-font-family">
-              <option value="Arial">Arial</option>
-              <option value="Helvetica">Helvetica</option>
-              <option value="Times New Roman">Times New Roman</option>
-            </select>
-          </div>
-          <div class="submenu-group">
-            <h4>Size/Color</h4>
-            <select id="textbox-font-size"><option>12</option><option selected>16</option><option>20</option><option>24</option></select>
-            <input type="color" id="textbox-font-color" value="#000000" />
-          </div>
-          <div class="submenu-group">
-            <h4>Box</h4>
-            <input type="color" id="textbox-bg-color" value="#ffffff" title="Background" />
-            <input type="color" id="textbox-border-color" value="#3498db" title="Border" />
-          </div>
-          <div class="submenu-group">
-            <h4>Style</h4>
-            <div class="submenu-options">
-              <button class="submenu-btn" id="textbox-bold-btn" title="Bold"><i class="fas fa-bold"></i></button>
-              <button class="submenu-btn" id="textbox-italic-btn" title="Italic"><i class="fas fa-italic"></i></button>
-              <button class="submenu-btn" id="textbox-underline-btn" title="Underline"><i class="fas fa-underline"></i></button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Draw submenu -->
-        <div class="draw-submenu" id="draw-submenu">
-          <div class="submenu-group">
-            <h4>Pen</h4>
-            <div class="submenu-options">
-              <input type="color" id="draw-color" value="#ff2d2d" />
-              <label>Width <input type="number" id="line-width" value="3" min="1" max="20" style="width:64px"></label>
-            </div>
-          </div>
-        </div>
-
-        <!-- (Highlight & Shapes submenus preserved shells) -->
-        <div class="highlight-submenu" id="highlight-submenu"><div class="submenu-group"><h4>Highlight</h4><input type="color" value="#fff59d"></div></div>
-        <div class="shapes-submenu" id="shapes-submenu"><div class="submenu-group"><h4>Shapes</h4><div class="submenu-options"><button class="submenu-btn" disabled>Rect</button><button class="submenu-btn" disabled>Circle</button><button class="submenu-btn" disabled>Arrow</button></div></div></div>
       </div>
 
       <div class="pdf-viewer-container">
         <div class="pdf-page">
           <div class="pdf-content">
-            <!-- Base PDF canvas (actual PDF.js render goes here) -->
             <canvas id="pdf-render-canvas"></canvas>
-            <!-- Overlays (kept) -->
             <canvas id="annotation-canvas" class="annotation-canvas"></canvas>
             <canvas id="drawing-canvas" class="drawing-canvas"></canvas>
-            <!-- Placeholder for no file loaded -->
             <div class="page-mock" id="page-mock">
               <i class="fas fa-file-pdf"></i>
               <h2>PDF Document Preview</h2>
@@ -222,281 +127,82 @@
     </div>
   </div>
 
-  <!-- PDF.js (official CDN) -->
+  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
   <script>
-    // Make sure PDF.js worker is set (fixes "worker not found" errors)
-    if (window.pdfjsLib) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
-    }
+    // ✅ Ensure PDF.js worker is loaded
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
 
-    // ---------- State ----------
-    const state = {
-      currentTool: 'textbox',
-      pageNum: 1,
-      pageCount: 1,
-      zoomLevel: 100,
-      pdfDoc: null,
-      pdfFileUrl: null,
-      drawing: false,
-      lastX: 0,
-      lastY: 0,
-      textboxCounter: 0,
-      actionHistory: [],
-      historyIndex: -1
-    };
+    const state = { pdfDoc:null, pageNum:1, pageCount:1, zoomLevel:100, pdfFileUrl:null, drawing:false, lastX:0, lastY:0 };
 
-    // ---------- Elements (ids preserved) ----------
     const elements = {
-      homePage: document.getElementById('home-page'),
-      uploadPage: document.getElementById('upload-page'),
-      editorContainer: document.getElementById('editor-container'),
-      editPdfBtn: document.getElementById('edit-pdf-btn'),
-      uploadArea: document.getElementById('upload-area'),
-      fileInputUpload: document.getElementById('file-input-upload'),
-      backBtn: document.getElementById('back-btn'),
-
-      savePdfBtn: document.getElementById('save-pdf'),
-      printPdfBtn: document.getElementById('print-pdf'),
-
-      textToolBtn: document.getElementById('text-tool'),
-      textboxToolBtn: document.getElementById('textbox-tool'),
-      drawToolBtn: document.getElementById('draw-tool'),
-      highlightToolBtn: document.getElementById('highlight-tool'),
-      shapesToolBtn: document.getElementById('shapes-tool'),
-
-      prevPageBtn: document.getElementById('prev-page'),
-      nextPageBtn: document.getElementById('next-page'),
-      pageNumElem: document.getElementById('page-num'),
-      pageCountElem: document.getElementById('page-count'),
-
-      fontFamily: document.getElementById('font-family'),
-      fontSize: document.getElementById('font-size'),
-      fontColor: document.getElementById('font-color'),
-      boldBtn: document.getElementById('bold-btn'),
-      italicBtn: document.getElementById('italic-btn'),
-      underlineBtn: document.getElementById('underline-btn'),
-
-      textboxFontFamily: document.getElementById('textbox-font-family'),
-      textboxFontSize: document.getElementById('textbox-font-size'),
-      textboxFontColor: document.getElementById('textbox-font-color'),
-      textboxBgColor: document.getElementById('textbox-bg-color'),
-      textboxBorderColor: document.getElementById('textbox-border-color'),
-      textboxBoldBtn: document.getElementById('textbox-bold-btn'),
-      textboxItalicBtn: document.getElementById('textbox-italic-btn'),
-      textboxUnderlineBtn: document.getElementById('textbox-underline-btn'),
-
-      pdfCanvas: document.getElementById('pdf-render-canvas'),
-      annotationCanvas: document.getElementById('annotation-canvas'),
-      drawingCanvas: document.getElementById('drawing-canvas'),
-      pageMock: document.getElementById('page-mock'),
-
-      loadingOverlay: document.getElementById('loading-overlay'),
-      toast: document.getElementById('toast'),
-      shareBtn: document.getElementById('share-btn'),
-      zoomInBtn: document.getElementById('zoom-in'),
-      zoomOutBtn: document.getElementById('zoom-out'),
-      zoomResetBtn: document.getElementById('zoom-reset')
+      homePage:document.getElementById('home-page'),
+      uploadPage:document.getElementById('upload-page'),
+      editorContainer:document.getElementById('editor-container'),
+      editPdfBtn:document.getElementById('edit-pdf-btn'),
+      uploadArea:document.getElementById('upload-area'),
+      fileInputUpload:document.getElementById('file-input-upload'),
+      backBtn:document.getElementById('back-btn'),
+      pdfCanvas:document.getElementById('pdf-render-canvas'),
+      pageMock:document.getElementById('page-mock'),
+      pageNumElem:document.getElementById('page-num'),
+      pageCountElem:document.getElementById('page-count'),
+      nextPageBtn:document.getElementById('next-page'),
+      prevPageBtn:document.getElementById('prev-page'),
+      zoomInBtn:document.getElementById('zoom-in'),
+      zoomOutBtn:document.getElementById('zoom-out'),
+      zoomResetBtn:document.getElementById('zoom-reset'),
+      loadingOverlay:document.getElementById('loading-overlay'),
+      toast:document.getElementById('toast'),
+      drawingCanvas:document.getElementById('drawing-canvas')
     };
 
-    // ---------- Views ----------
+    function showToast(msg){ elements.toast.textContent=msg; elements.toast.classList.add('show'); setTimeout(()=>elements.toast.classList.remove('show'),2000); }
     function showUploadPage(){ elements.homePage.style.display='none'; elements.uploadPage.style.display='block'; elements.editorContainer.style.display='none'; }
-    function showHomePage(){ elements.homePage.style.display='block'; elements.uploadPage.style.display='none'; elements.editorContainer.style.display='none'; }
     function showEditor(){ elements.homePage.style.display='none'; elements.uploadPage.style.display='none'; elements.editorContainer.style.display='block'; }
 
-    // ---------- Toast ----------
-    function showToast(msg, dur=2000){ elements.toast.textContent = msg; elements.toast.classList.add('show'); setTimeout(()=>elements.toast.classList.remove('show'), dur); }
-
-    // ---------- PDF.js Rendering ----------
     async function loadPdfFromFile(file){
-      if(!file){ showToast('No file selected',2000); return; }
-      // Accept files that are PDF by mime OR by filename fallback
-      const isPdf = (file.type && file.type === 'application/pdf') || file.name.toLowerCase().endsWith('.pdf');
-      if(!isPdf){ showToast('Please select a valid PDF file', 2500); return; }
+      if(!file) return;
+      const isPdf = file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
+      if(!isPdf){ showToast('Invalid PDF file'); return; }
 
       elements.loadingOverlay.style.display='flex';
-      try{
-        if(state.pdfFileUrl){ URL.revokeObjectURL(state.pdfFileUrl); }
+      try {
+        if(state.pdfFileUrl) URL.revokeObjectURL(state.pdfFileUrl);
         state.pdfFileUrl = URL.createObjectURL(file);
-
-        // ensure worker is set (redundant-safe)
-        if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
-
-        const loadingTask = pdfjsLib.getDocument({ url: state.pdfFileUrl });
+        const loadingTask = pdfjsLib.getDocument(state.pdfFileUrl);
         state.pdfDoc = await loadingTask.promise;
-        state.pageCount = state.pdfDoc.numPages;
-        state.pageNum = 1;
-        elements.pageCountElem.textContent = state.pageCount;
-        elements.pageNumElem.textContent = state.pageNum;
+        state.pageCount=state.pdfDoc.numPages; state.pageNum=1;
+        elements.pageCountElem.textContent=state.pageCount;
+        elements.pageNumElem.textContent=state.pageNum;
         elements.pageMock.style.display='none';
         await renderPage();
         showEditor();
-        showToast('PDF loaded successfully');
-      }catch(err){ console.error('PDF load error:', err); showToast('Failed to load PDF'); }
-      finally{ elements.loadingOverlay.style.display='none'; }
+        showToast('PDF loaded');
+      } catch(e){ console.error(e); showToast('Failed to load PDF file'); }
+      finally { elements.loadingOverlay.style.display='none'; }
     }
 
     async function renderPage(){
-      if(!state.pdfDoc) return;
-      const page = await state.pdfDoc.getPage(state.pageNum);
-      // viewport (use zoomLevel as percent)
-      const viewport = page.getViewport({ scale: state.zoomLevel/100 });
-      const canvas = elements.pdfCanvas;
-      const ctx = canvas.getContext('2d');
-
-      // handle HiDPI: scale canvas backing store by devicePixelRatio and set CSS size to logical pixels
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * ratio);
-      canvas.height = Math.floor(viewport.height * ratio);
-      canvas.style.width = `${Math.floor(viewport.width)}px`;
-      canvas.style.height = `${Math.floor(viewport.height)}px`;
-      // scale drawing operations so 1 unit = 1 CSS pixel
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-
-      // render PDF page into canvas
-      const renderTask = page.render({ canvasContext: ctx, viewport });
-      await renderTask.promise;
-
-      // After rendering, size/position overlay canvases to match
-      positionOverlayCanvases();
-      // Clear overlays (optional — you can preserve if you implement per-page persistence)
-      clearOverlays();
+      const page=await state.pdfDoc.getPage(state.pageNum);
+      const viewport=page.getViewport({scale:state.zoomLevel/100});
+      const canvas=elements.pdfCanvas, ctx=canvas.getContext('2d');
+      canvas.width=viewport.width; canvas.height=viewport.height;
+      await page.render({canvasContext:ctx,viewport}).promise;
     }
 
-    function positionOverlayCanvases(){
-      const base = elements.pdfCanvas;
-      const parent = base.parentElement; // .pdf-content
-      const parentRect = parent.getBoundingClientRect();
-      const baseRect = base.getBoundingClientRect();
-      const left = baseRect.left - parentRect.left;
-      const top = baseRect.top - parentRect.top;
-      const ratio = window.devicePixelRatio || 1;
+    elements.editPdfBtn.onclick=showUploadPage;
+    elements.backBtn.onclick=()=>{ elements.homePage.style.display='block'; elements.uploadPage.style.display='none'; };
+    elements.fileInputUpload.onchange=e=>loadPdfFromFile(e.target.files[0]);
+    elements.uploadArea.onclick=()=>elements.fileInputUpload.click();
+    elements.nextPageBtn.onclick=async()=>{ if(state.pageNum<state.pageCount){ state.pageNum++; elements.pageNumElem.textContent=state.pageNum; await renderPage(); } };
+    elements.prevPageBtn.onclick=async()=>{ if(state.pageNum>1){ state.pageNum--; elements.pageNumElem.textContent=state.pageNum; await renderPage(); } };
+    elements.zoomInBtn.onclick=()=>{ state.zoomLevel+=10; elements.zoomResetBtn.textContent=state.zoomLevel+'%'; renderPage(); };
+    elements.zoomOutBtn.onclick=()=>{ if(state.zoomLevel>20){ state.zoomLevel-=10; elements.zoomResetBtn.textContent=state.zoomLevel+'%'; renderPage(); } };
+    elements.zoomResetBtn.onclick=()=>{ state.zoomLevel=100; elements.zoomResetBtn.textContent='100%'; renderPage(); };
 
-      [elements.annotationCanvas, elements.drawingCanvas].forEach(cv=>{
-        // set internal canvas pixel size to match base canvas pixel backing store
-        cv.width = base.width;   // base.width is device-pixel backing width
-        cv.height = base.height;
-        // set CSS size (so client coords are in CSS pixels)
-        cv.style.width = `${baseRect.width}px`;
-        cv.style.height = `${baseRect.height}px`;
-
-        // position canvas inside .pdf-content using pixel offsets relative to parent
-        cv.style.transform = 'none'; // override any CSS transform
-        cv.style.left = `${Math.round(left)}px`;
-        cv.style.top = `${Math.round(top)}px`;
-
-        // ensure the overlay context uses same scaling so 1 CSS px maps correctly
-        const cctx = cv.getContext('2d');
-        cctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      });
-    }
-
-    function clearOverlays(){
-      [elements.annotationCanvas, elements.drawingCanvas].forEach(cv=>{
-        const ctx = cv.getContext('2d');
-        ctx.clearRect(0,0,cv.width,cv.height);
-      });
-    }
-
-    // ---------- File Upload / Drag & Drop ----------
-    function wireUploadArea(){
-      elements.uploadArea.addEventListener('click', ()=> elements.fileInputUpload.click());
-      elements.fileInputUpload.addEventListener('change', (e)=> { loadPdfFromFile(e.target.files[0]); e.target.value=''; });
-      // Drag & drop
-      ;['dragenter','dragover'].forEach(evt=> elements.uploadArea.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); elements.uploadArea.style.borderColor = '#3498db'; }));
-      ;['dragleave','drop'].forEach(evt=> elements.uploadArea.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); elements.uploadArea.style.borderColor = '#9bbad6'; }));
-      elements.uploadArea.addEventListener('drop', (e)=>{
-        const dt = e.dataTransfer; if(dt && dt.files && dt.files[0]){ loadPdfFromFile(dt.files[0]); }
-      });
-    }
-
-    // ---------- Toolbar: tools, zoom, nav ----------
-    function setTool(tool){ state.currentTool = tool; document.querySelectorAll('.toolbar .toolbar-group button').forEach(b=>b.classList.remove('tool-active')); const btn = document.getElementById(`${tool}-tool`); if(btn) btn.classList.add('tool-active'); elements.drawingCanvas.style.cursor = (tool==='draw')? 'crosshair':'default'; }
-    function zoomIn(){ state.zoomLevel += 10; elements.zoomResetBtn.textContent = `${state.zoomLevel}%`; renderPage(); }
-    function zoomOut(){ if(state.zoomLevel>10){ state.zoomLevel -= 10; elements.zoomResetBtn.textContent = `${state.zoomLevel}%`; renderPage(); } }
-    function zoomReset(){ state.zoomLevel = 100; elements.zoomResetBtn.textContent = '100%'; renderPage(); }
-    async function nextPage(){ if(state.pdfDoc && state.pageNum < state.pageCount){ state.pageNum++; elements.pageNumElem.textContent = state.pageNum; await renderPage(); } }
-    async function prevPage(){ if(state.pdfDoc && state.pageNum > 1){ state.pageNum--; elements.pageNumElem.textContent = state.pageNum; await renderPage(); } }
-
-    // ---------- Drawing (fixed + HiDPI aware) ----------
-    function startDrawing(e){
-      if(state.currentTool!=='draw') return;
-      state.drawing=true;
-      const rect = elements.drawingCanvas.getBoundingClientRect();
-      // use CSS pixel coordinates (context is scaled with setTransform)
-      state.lastX = e.clientX - rect.left;
-      state.lastY = e.clientY - rect.top;
-    }
-    function draw(e){
-      if(!state.drawing) return;
-      const canvas = elements.drawingCanvas;
-      const ctx = canvas.getContext('2d');
-      const rect = canvas.getBoundingClientRect();
-      const currentX = e.clientX - rect.left;
-      const currentY = e.clientY - rect.top;
-      ctx.beginPath();
-      ctx.moveTo(state.lastX, state.lastY);
-      ctx.lineTo(currentX, currentY);
-      ctx.strokeStyle = document.getElementById('draw-color').value;
-      ctx.lineWidth = Number(document.getElementById('line-width').value)||3;
-      ctx.lineCap='round';
-      ctx.stroke();
-      state.lastX=currentX;
-      state.lastY=currentY;
-    }
-    function stopDrawing(){ if(state.drawing){ state.drawing=false; } }
-
-    // ---------- Textbox (kept behavior minimal & same ids) ----------
-    function createTextBox(){ setTool('textbox'); const id = `textbox-${state.textboxCounter++}`; const box = document.createElement('div'); box.className='textbox-container'; box.id=id; box.style.position='absolute'; box.style.left='60px'; box.style.top='60px'; box.style.width='220px'; box.style.height='80px'; box.style.backgroundColor=document.getElementById('textbox-bg-color').value; box.style.border = `1px solid ${document.getElementById('textbox-border-color').value}`; box.style.borderRadius='6px'; box.style.padding='6px'; box.style.zIndex=20; box.style.pointerEvents='auto';
-      const ta = document.createElement('textarea'); ta.className='textbox-content'; ta.style.width='100%'; ta.style.height='100%'; ta.style.resize='none'; ta.style.border='none'; ta.style.outline='none'; ta.style.background='transparent'; ta.value='Type here…'; ta.style.fontFamily = document.getElementById('textbox-font-family').value; ta.style.fontSize = document.getElementById('textbox-font-size').value + 'px'; ta.style.color = document.getElementById('textbox-font-color').value; box.appendChild(ta); elements.pdfCanvas.parentElement.appendChild(box);
-      // drag
-      let dragging=false, offsetX=0, offsetY=0;
-      box.addEventListener('mousedown', (e)=>{ dragging=true; const r = box.getBoundingClientRect(); offsetX = e.clientX - r.left; offsetY = e.clientY - r.top; });
-      document.addEventListener('mousemove', (e)=>{ if(!dragging) return; const parentRect = elements.pdfCanvas.getBoundingClientRect(); box.style.left = (e.clientX - parentRect.left - offsetX) + 'px'; box.style.top = (e.clientY - parentRect.top - offsetY) + 'px'; });
-      document.addEventListener('mouseup', ()=> dragging=false);
-    }
-
-    // ---------- Save / Print (basic) ----------
-    function savePdf(){ showToast('Note: This demo saves annotations as an image layer. For producing a new PDF, integrate pdf-lib/jspdf as needed.'); }
-    function printPdf(){ window.print(); }
-
-    // ---------- Share ----------
-    function shareOnSocialMedia(){ const shareText = 'Check out this PDF editor!'; const shareUrl = window.location.href; if(navigator.share){ navigator.share({ title:'PDF Editor', text:shareText, url:shareUrl }).catch(()=>{}); } else { window.open(`https://wa.me/?text=${encodeURIComponent(shareText+' '+shareUrl)}`,'_blank'); } }
-
-    // ---------- Init ----------
-    function init(){
-      elements.editPdfBtn.addEventListener('click', showUploadPage);
-      elements.backBtn.addEventListener('click', showHomePage);
-      elements.shareBtn.addEventListener('click', shareOnSocialMedia);
-      wireUploadArea();
-
-      // tools
-      elements.textboxToolBtn.addEventListener('click', createTextBox);
-      elements.drawToolBtn.addEventListener('click', ()=> setTool('draw'));
-      elements.textToolBtn.addEventListener('click', ()=> setTool('text'));
-
-      // Save/print
-      elements.savePdfBtn && elements.savePdfBtn.addEventListener('click', savePdf);
-      elements.printPdfBtn && elements.printPdfBtn.addEventListener('click', printPdf);
-
-      // zoom + pages
-      elements.zoomInBtn.addEventListener('click', zoomIn);
-      elements.zoomOutBtn.addEventListener('click', zoomOut);
-      elements.zoomResetBtn.addEventListener('click', zoomReset);
-      elements.nextPageBtn.addEventListener('click', nextPage);
-      elements.prevPageBtn.addEventListener('click', prevPage);
-
-      // drawing events
-      elements.drawingCanvas.addEventListener('mousedown', startDrawing);
-      elements.drawingCanvas.addEventListener('mousemove', draw);
-      elements.drawingCanvas.addEventListener('mouseup', stopDrawing);
-      elements.drawingCanvas.addEventListener('mouseleave', stopDrawing);
-
-      // show upload first (like original)
-      showUploadPage();
-    }
-
-    init();
+    showUploadPage();
   </script>
 </body>
 </html>

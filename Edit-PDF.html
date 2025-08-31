@@ -1281,7 +1281,7 @@
             elements.editPdfBtn.addEventListener('click', showUploadPage);
             elements.backBtn.addEventListener('click', showHomePage);
             elements.uploadArea.addEventListener('click', () => elements.fileInputUpload.click());
-            elements.fileInputUpload.addEventListener('change', handleFileUploadFromHome);
+            elements.fileInputUpload.addEventListener('change', handleFileUpload);
             
             // Event listener for sharing button
             elements.shareBtn.addEventListener('click', shareOnSocialMedia);
@@ -1421,8 +1421,8 @@
             elements.editorContainer.style.display = 'block';
         }
 
-        // Handle file upload from home page
-        function handleFileUploadFromHome(e) {
+        // Handle file upload
+        function handleFileUpload(e) {
             const file = e.target.files[0];
             if (file && file.type === 'application/pdf') {
                 elements.loadingOverlay.style.display = 'flex';

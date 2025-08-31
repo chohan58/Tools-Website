@@ -6,6 +6,8 @@
     <title>PDF Editor Plugin</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <!-- Add jsPDF library for saving functionality -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -795,6 +797,36 @@
             margin: 0 auto;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
+
+        /* Print styles for PDF only */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .pdf-viewer-container, .pdf-viewer-container * {
+                visibility: visible;
+            }
+            .pdf-viewer-container {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: auto;
+            }
+            .editor-container, .editor-container * {
+                visibility: hidden;
+            }
+            .pdf-viewer-container, .pdf-page, .pdf-content {
+                visibility: visible;
+                position: static;
+                width: 100%;
+                height: auto;
+                box-shadow: none;
+                border: none;
+                padding: 0;
+                margin: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1175,6 +1207,9 @@
     </footer>
     
     <script>
+        // Initialize jsPDF
+        const { jsPDF } = window.jspdf;
+
         // Plugin state
         const state = {
             currentTool: 'textbox',
@@ -1216,7 +1251,12 @@
             actionHistory: [],
             historyIndex: -1,
             pdfDoc: null,
-            pdfViewer: null
+            pdfViewer: null,
+            highlightMode: false,
+            highlightColor: '#FFFF00',
+            highlightOpacity: 0.7,
+            shapeMode: false,
+            currentShape: 'rectangle'
         };
         
         // DOM Elements
@@ -1269,7 +1309,8 @@
             toast: document.getElementById('toast'),
             shareBtn: document.getElementById('share-btn'),
             pdfViewer: document.getElementById('pdf-viewer'),
-            pageMock: document.querySelector('.page-mock')
+            pageMock: document.querySelector('.page-mock'),
+            annotationCanvas: document.getElementById('annotation-canvas')
         };
         
         // Initialize the plugin
@@ -1372,6 +1413,31 @@
             elements.drawingCanvas.addEventListener('mousemove', draw);
             elements.drawingCanvas.addEventListener('mouseup', stopDrawing);
             elements.drawingCanvas.addEventListener('mouseout', stopDrawing);
+            
+            // Add event listeners for highlight tool
+            elements.highlightToolBtn.addEventListener('click', () => setTool('highlight'));
+            document.getElementById('highlight-color-picker').addEventListener('change', updateHighlightColor);
+            document.getElementById('highlight-opacity').addEventListener('input', updateHighlightOpacity);
+            document.querySelectorAll('.highlight-color').forEach(el => {
+                el.addEventListener('click', function() {
+                    document.querySelectorAll('.highlight-color').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    state.highlightColor = this.getAttribute('data-color');
+                });
+            });
+            
+            // Add event listeners for shapes tool
+            elements.shapesToolBtn.addEventListener('click', () => setTool('shapes'));
+            document.getElementById('shape-color').addEventListener('change', updateShapeColor);
+            document.getElementById('border-width').addEventListener('input', updateBorderWidth);
+            document.getElementById('fill-style').addEventListener('change', updateFillStyle);
+            document.querySelectorAll('.shape-btn').forEach(el => {
+                el.addEventListener('click', function() {
+                    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    state.currentShape = this.getAttribute('data-shape');
+                });
+            });
             
             // Hide loading overlay after initialization
             setTimeout(() => {
@@ -1502,6 +1568,8 @@
                     // Position the drawing canvas over the PDF
                     elements.drawingCanvas.style.width = canvas.width + 'px';
                     elements.drawingCanvas.style.height = canvas.height + 'px';
+                    elements.annotationCanvas.style.width = canvas.width + 'px';
+                    elements.annotationCanvas.style.height = canvas.height + 'px';
                 });
             });
         }
@@ -1512,6 +1580,10 @@
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width;
             canvas.height = rect.height;
+            
+            const annotationCanvas = elements.annotationCanvas;
+            annotationCanvas.width = rect.width;
+            annotationCanvas.height = rect.height;
         }
 
         // Show toast notification
@@ -1717,34 +1789,102 @@
         
         // Start drawing
         function startDrawing(e) {
-            if (state.currentTool !== 'draw') return;
-            
-            state.drawing = true;
-            const rect = elements.drawingCanvas.getBoundingClientRect();
-            state.lastX = e.clientX - rect.left;
-            state.lastY = e.clientY - rect.top;
+            if (state.currentTool === 'draw') {
+                state.drawing = true;
+                const rect = elements.drawingCanvas.getBoundingClientRect();
+                state.lastX = e.clientX - rect.left;
+                state.lastY = e.clientY - rect.top;
+            } else if (state.currentTool === 'highlight') {
+                state.drawing = true;
+                const rect = elements.annotationCanvas.getBoundingClientRect();
+                state.lastX = e.clientX - rect.left;
+                state.lastY = e.clientY - rect.top;
+            } else if (state.currentTool === 'shapes') {
+                state.drawing = true;
+                const rect = elements.annotationCanvas.getBoundingClientRect();
+                state.lastX = e.clientX - rect.left;
+                state.lastY = e.clientY - rect.top;
+            }
         }
         
         // Draw on canvas
         function draw(e) {
             if (!state.drawing) return;
             
-            const canvas = elements.drawingCanvas;
-            const ctx = canvas.getContext('2d');
-            const rect = canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
-            
-            ctx.beginPath();
-            ctx.moveTo(state.lastX, state.lastY);
-            ctx.lineTo(currentX, currentY);
-            ctx.strokeStyle = document.getElementById('draw-color').value;
-            ctx.lineWidth = document.getElementById('line-width').value;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-            
-            state.lastX = currentX;
-            state.lastY = currentY;
+            if (state.currentTool === 'draw') {
+                const canvas = elements.drawingCanvas;
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+                
+                ctx.beginPath();
+                ctx.moveTo(state.lastX, state.lastY);
+                ctx.lineTo(currentX, currentY);
+                ctx.strokeStyle = document.getElementById('draw-color').value;
+                ctx.lineWidth = document.getElementById('line-width').value;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                
+                state.lastX = currentX;
+                state.lastY = currentY;
+            } else if (state.currentTool === 'highlight') {
+                const canvas = elements.annotationCanvas;
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                ctx.rect(state.lastX, state.lastY, currentX - state.lastX, currentY - state.lastY);
+                ctx.fillStyle = state.highlightColor + Math.floor(state.highlightOpacity * 255).toString(16).padStart(2, '0');
+                ctx.fill();
+            } else if (state.currentTool === 'shapes') {
+                const canvas = elements.annotationCanvas;
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                
+                if (state.currentShape === 'rectangle') {
+                    ctx.rect(state.lastX, state.lastY, currentX - state.lastX, currentY - state.lastY);
+                } else if (state.currentShape === 'circle') {
+                    const radius = Math.sqrt(Math.pow(currentX - state.lastX, 2) + Math.pow(currentY - state.lastY, 2));
+                    ctx.arc(state.lastX, state.lastY, radius, 0, 2 * Math.PI);
+                } else if (state.currentShape === 'arrow') {
+                    const headlen = 10;
+                    const angle = Math.atan2(currentY - state.lastY, currentX - state.lastX);
+                    
+                    ctx.moveTo(state.lastX, state.lastY);
+                    ctx.lineTo(currentX, currentY);
+                    ctx.lineTo(currentX - headlen * Math.cos(angle - Math.PI/6), currentY - headlen * Math.sin(angle - Math.PI/6));
+                    ctx.moveTo(currentX, currentY);
+                    ctx.lineTo(currentX - headlen * Math.cos(angle + Math.PI/6), currentY - headlen * Math.sin(angle + Math.PI/6));
+                }
+                
+                ctx.strokeStyle = document.getElementById('shape-color').value;
+                ctx.lineWidth = document.getElementById('border-width').value;
+                ctx.stroke();
+                
+                if (document.getElementById('fill-style').value !== 'transparent') {
+                    ctx.fillStyle = document.getElementById('fill-style').value === 'gradient' 
+                        ? createGradient(ctx, state.lastX, state.lastY, currentX, currentY)
+                        : document.getElementById('shape-color').value;
+                    ctx.fill();
+                }
+            }
+        }
+        
+        // Create gradient for shapes
+        function createGradient(ctx, x0, y0, x1, y1) {
+            const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+            gradient.addColorStop(0, document.getElementById('shape-color').value);
+            gradient.addColorStop(1, 'white');
+            return gradient;
         }
         
         // Stop drawing
@@ -1763,7 +1903,8 @@
             }
             
             // Save the current canvas state
-            const canvasData = elements.drawingCanvas.toDataURL();
+            const drawingCanvasData = elements.drawingCanvas.toDataURL();
+            const annotationCanvasData = elements.annotationCanvas.toDataURL();
             
             // Save the current text boxes
             const textboxes = [];
@@ -1789,7 +1930,8 @@
             
             // Add to history
             state.actionHistory.push({
-                canvas: canvasData,
+                drawingCanvas: drawingCanvasData,
+                annotationCanvas: annotationCanvasData,
                 textboxes: textboxes
             });
             
@@ -1803,14 +1945,23 @@
             
             const stateData = state.actionHistory[state.historyIndex];
             
-            // Restore canvas
-            const img = new Image();
-            img.onload = function() {
+            // Restore drawing canvas
+            const drawingImg = new Image();
+            drawingImg.onload = function() {
                 const ctx = elements.drawingCanvas.getContext('2d');
                 ctx.clearRect(0, 0, elements.drawingCanvas.width, elements.drawingCanvas.height);
-                ctx.drawImage(img, 0, 0);
+                ctx.drawImage(drawingImg, 0, 0);
             };
-            img.src = stateData.canvas;
+            drawingImg.src = stateData.drawingCanvas;
+            
+            // Restore annotation canvas
+            const annotationImg = new Image();
+            annotationImg.onload = function() {
+                const ctx = elements.annotationCanvas.getContext('2d');
+                ctx.clearRect(0, 0, elements.annotationCanvas.width, elements.annotationCanvas.height);
+                ctx.drawImage(annotationImg, 0, 0);
+            };
+            annotationImg.src = stateData.annotationCanvas;
             
             // Remove existing text boxes
             document.querySelectorAll('.textbox-container').forEach(textbox => textbox.remove());
@@ -2015,6 +2166,33 @@
             // Note: True vertical alignment in a textarea requires more complex CSS.
         }
         
+        // Update highlight color
+        function updateHighlightColor() {
+            state.highlightColor = this.value;
+        }
+        
+        // Update highlight opacity
+        function updateHighlightOpacity() {
+            state.highlightOpacity = this.value / 100;
+            this.nextElementSibling.textContent = `${this.value}%`;
+        }
+        
+        // Update shape color
+        function updateShapeColor() {
+            // This will be applied when drawing shapes
+        }
+        
+        // Update border width
+        function updateBorderWidth() {
+            // This will be applied when drawing shapes
+            this.nextElementSibling.textContent = `${this.value}px`;
+        }
+        
+        // Update fill style
+        function updateFillStyle() {
+            // This will be applied when drawing shapes
+        }
+        
         // Set the current tool
         function setTool(tool) {
             state.currentTool = tool;
@@ -2030,15 +2208,96 @@
             // Update cursor based on tool
             if (tool === 'draw') {
                 elements.drawingCanvas.style.cursor = 'crosshair';
+                elements.annotationCanvas.style.cursor = 'default';
+            } else if (tool === 'highlight' || tool === 'shapes') {
+                elements.drawingCanvas.style.cursor = 'default';
+                elements.annotationCanvas.style.cursor = 'crosshair';
             } else {
                 elements.drawingCanvas.style.cursor = 'default';
+                elements.annotationCanvas.style.cursor = 'default';
             }
         }
         
         // Save PDF
         function savePdf() {
+            // Create a new jsPDF instance
+            const pdf = new jsPDF();
+            
+            // Get the PDF content area
+            const pdfContent = elements.pdfContent;
+            
+            // Create a canvas to render the content
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions to match the PDF content
+            canvas.width = pdfContent.offsetWidth;
+            canvas.height = pdfContent.offsetHeight;
+            
+            // Draw the content onto the canvas
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw the PDF viewer content
+            const pdfViewer = elements.pdfViewer;
+            if (pdfViewer.children.length > 0) {
+                const pdfCanvas = pdfViewer.querySelector('canvas');
+                if (pdfCanvas) {
+                    ctx.drawImage(pdfCanvas, 0, 0, canvas.width, canvas.height);
+                }
+            }
+            
+            // Draw the annotation canvas
+            ctx.drawImage(elements.annotationCanvas, 0, 0, canvas.width, canvas.height);
+            
+            // Draw the drawing canvas
+            ctx.drawImage(elements.drawingCanvas, 0, 0, canvas.width, canvas.height);
+            
+            // Draw text boxes
+            const textboxes = document.querySelectorAll('.textbox-container');
+            textboxes.forEach(textbox => {
+                const rect = textbox.getBoundingClientRect();
+                const contentRect = pdfContent.getBoundingClientRect();
+                
+                const x = rect.left - contentRect.left;
+                const y = rect.top - contentRect.top;
+                const width = rect.width;
+                const height = rect.height;
+                
+                // Draw text box background
+                ctx.fillStyle = textbox.style.backgroundColor;
+                ctx.fillRect(x, y, width, height);
+                
+                // Draw text box border
+                ctx.strokeStyle = textbox.style.borderColor;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, width, height);
+                
+                // Draw text
+                const textarea = textbox.querySelector('.textbox-content');
+                ctx.font = `${textarea.style.fontWeight} ${textarea.style.fontSize} ${textarea.style.fontFamily}`;
+                ctx.fillStyle = textarea.style.color;
+                ctx.textAlign = textarea.style.textAlign;
+                
+                // Basic text rendering (for simplicity)
+                const lines = textarea.value.split('\n');
+                const lineHeight = parseInt(textarea.style.fontSize) * 1.2;
+                
+                lines.forEach((line, index) => {
+                    ctx.fillText(line, x + 5, y + 20 + (index * lineHeight));
+                });
+            });
+            
+            // Convert canvas to image data
+            const imgData = canvas.toDataURL('image/png');
+            
+            // Add image to PDF
+            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * 0.75, canvas.height * 0.75);
+            
+            // Save the PDF
+            pdf.save('edited-document.pdf');
+            
             showToast('PDF saved successfully!');
-            // In a real application, you would use jsPDF or similar library to generate the PDF
         }
         
         // Print PDF
